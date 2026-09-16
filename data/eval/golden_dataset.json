@@ -1,42 +1,66 @@
 [
   {
-    "test_id": "revenue-2024",
-    "query": "What was total revenue in 2024?",
-    "expected_answer": "Total revenue was $1,200,000.",
-    "expected_facts": ["Total revenue was $1,200,000"],
+    "test_id": "pnl-q1-revenue",
+    "query": "What was the total revenue in Q1 2025 and was it approved?",
+    "expected_answer": "The total revenue in Q1 2025 was $1,200,000, and it was approved by the CFO.",
+    "expected_facts": [
+      "Revenue in Q1 2025 was $1,200,000",
+      "Approved by CFO"
+    ],
     "expected_numbers": ["$1,200,000"],
-    "ground_truth_chunks": ["Total revenue was $1,200,000"]
+    "ground_truth_chunks": [
+      "| Revenue | $1200000 | $1450000 | Approved by CFO |"
+    ]
   },
   {
-    "test_id": "gross-margin-2024",
-    "query": "What was the 2024 gross margin?",
-    "expected_answer": "Gross margin was 42.5%.",
-    "expected_facts": ["Gross margin was 42.5%"],
-    "expected_numbers": ["42.5%"],
-    "ground_truth_chunks": ["Gross margin was 42.5%"]
+    "test_id": "pnl-q2-net-income",
+    "query": "What was the Net Income in Q2 2025 and did it meet the target?",
+    "expected_answer": "The Net Income in Q2 2025 was $550,000, and it exceeded the target.",
+    "expected_facts": [
+      "Net Income in Q2 2025 was $550,000",
+      "Exceeds target"
+    ],
+    "expected_numbers": ["$550,000"],
+    "ground_truth_chunks": [
+      "| Net Income | $350000 | $550000 | Exceeds target |"
+    ]
   },
   {
-    "test_id": "operating-expenses",
-    "query": "How much were operating expenses?",
-    "expected_answer": "Operating expenses were $350,000.",
-    "expected_facts": ["Operating expenses were $350,000"],
+    "test_id": "pnl-operating-expenses-growth",
+    "query": "How much were the Operating Expenses in Q1 2025 and Q2 2025?",
+    "expected_answer": "Operating expenses were $850,000 in Q1 2025 and $900,000 in Q2 2025, which included vendor costs.",
+    "expected_facts": [
+      "Operating expenses in Q1 2025 were $850,000",
+      "Operating expenses in Q2 2025 were $900,000",
+      "Includes vendor costs"
+    ],
+    "expected_numbers": ["$850,000", "$900,000"],
+    "ground_truth_chunks": [
+      "| Operating Expenses | $850000 | $900000 | Includes vendor costs |"
+    ]
+  },
+  {
+    "test_id": "pnl-q1-net-income",
+    "query": "What was the reported Net Income for Q1 2025?",
+    "expected_answer": "The reported Net Income for Q1 2025 was $350,000.",
+    "expected_facts": [
+      "Net Income in Q1 2025 was $350,000"
+    ],
     "expected_numbers": ["$350,000"],
-    "ground_truth_chunks": ["Operating expenses were $350,000"]
+    "ground_truth_chunks": [
+      "| Net Income | $350000 | $550000 | Exceeds target |"
+    ]
   },
   {
-    "test_id": "cash-balance",
-    "query": "What was the year-end cash balance?",
-    "expected_answer": "The year-end cash balance was $875,000.",
-    "expected_facts": ["year-end cash balance was $875,000"],
-    "expected_numbers": ["$875,000"],
-    "ground_truth_chunks": ["Year-end cash balance was $875,000"]
-  },
-  {
-    "test_id": "revenue-growth",
-    "query": "What was revenue growth from 2023 to 2024?",
-    "expected_answer": "Revenue grew by 20.0% from 2023 to 2024.",
-    "expected_facts": ["Revenue grew by 20.0%"],
-    "expected_numbers": ["20.0%"],
-    "ground_truth_chunks": ["Revenue grew by 20.0% from 2023 to 2024"]
+    "test_id": "pnl-q2-revenue",
+    "query": "What was the Revenue reported in Q2 2025?",
+    "expected_answer": "The Revenue reported in Q2 2025 was $1,450,000.",
+    "expected_facts": [
+      "Revenue in Q2 2025 was $1,450,000"
+    ],
+    "expected_numbers": ["$1,450,000"],
+    "ground_truth_chunks": [
+      "| Revenue | $1200000 | $1450000 | Approved by CFO |"
+    ]
   }
 ]

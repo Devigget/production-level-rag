@@ -105,10 +105,49 @@ class GeminiLLMInvoker:
         return response.text or ""
 
 
+class NvidiaLLMInvoker:
+    """Callable adapter for NVIDIA's OpenAI-compatible inference endpoint."""
+
+    def __init__(self, api_key: str, model: str):
+        import httpx
+
+        self.model = model
+        self.client = httpx.Client(
+            base_url="https://integrate.api.nvidia.com/v1",
+            headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json"},
+            timeout=120.0,
+        )
+
+    def __call__(self, prompt: str) -> str:
+        response = self.client.post(
+            "/chat/completions",
+            json={
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": "You are a helpful financial RAG assistant. Answer only from the provided context."},
+                    {"role": "user", "content": prompt},
+                ],
+                "max_tokens": 1024,
+                "temperature": 0.0,
+                "top_p": 1.0,
+                "stream": False,
+            },
+        )
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"] or ""
+
+
 def create_llm_invoker() -> Callable[[str], str]:
     """Create the configured LLM invoker, retaining an offline fallback."""
 
     load_dotenv()
+    provider = os.getenv("LLM_PROVIDER", "gemini").lower()
+    if provider == "nvidia":
+        api_key = os.getenv("NVIDIA_API_KEY")
+        if api_key:
+            return NvidiaLLMInvoker(api_key, os.getenv("NVIDIA_MODEL", "google/gemma-4-31b-it"))
+        return lambda _: "I could not find supporting financial context for that question."
+
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         return lambda _: "I could not find supporting financial context for that question."

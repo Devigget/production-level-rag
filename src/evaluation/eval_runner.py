@@ -1,6 +1,7 @@
 """Batch evaluation runner for the guarded orchestration workflow."""
 
 import json
+import argparse
 from pathlib import Path
 from typing import Any
 
@@ -59,3 +60,18 @@ class EvaluationRunner:
 
 def run_evaluation(workflow: Any, dataset_path: str | Path) -> EvalRunReport:
     return EvaluationRunner(workflow).run(load_dataset(dataset_path))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run the golden evaluation dataset against the RAG workflow.")
+    parser.add_argument("--dataset", default="data/eval/golden_dataset.json", type=Path)
+    args = parser.parse_args()
+
+    from src.api.server import app
+
+    report = run_evaluation(app.state.workflow, args.dataset)
+    print(report.model_dump_json(indent=2))
+
+
+if __name__ == "__main__":
+    main()
