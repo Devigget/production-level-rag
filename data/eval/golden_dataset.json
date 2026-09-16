@@ -1,0 +1,42 @@
+[
+  {
+    "test_id": "revenue-2024",
+    "query": "What was total revenue in 2024?",
+    "expected_answer": "Total revenue was $1,200,000.",
+    "expected_facts": ["Total revenue was $1,200,000"],
+    "expected_numbers": ["$1,200,000"],
+    "ground_truth_chunks": ["Total revenue was $1,200,000"]
+  },
+  {
+    "test_id": "gross-margin-2024",
+    "query": "What was the 2024 gross margin?",
+    "expected_answer": "Gross margin was 42.5%.",
+    "expected_facts": ["Gross margin was 42.5%"],
+    "expected_numbers": ["42.5%"],
+    "ground_truth_chunks": ["Gross margin was 42.5%"]
+  },
+  {
+    "test_id": "operating-expenses",
+    "query": "How much were operating expenses?",
+    "expected_answer": "Operating expenses were $350,000.",
+    "expected_facts": ["Operating expenses were $350,000"],
+    "expected_numbers": ["$350,000"],
+    "ground_truth_chunks": ["Operating expenses were $350,000"]
+  },
+  {
+    "test_id": "cash-balance",
+    "query": "What was the year-end cash balance?",
+    "expected_answer": "The year-end cash balance was $875,000.",
+    "expected_facts": ["year-end cash balance was $875,000"],
+    "expected_numbers": ["$875,000"],
+    "ground_truth_chunks": ["Year-end cash balance was $875,000"]
+  },
+  {
+    "test_id": "revenue-growth",
+    "query": "What was revenue growth from 2023 to 2024?",
+    "expected_answer": "Revenue grew by 20.0% from 2023 to 2024.",
+    "expected_facts": ["Revenue grew by 20.0%"],
+    "expected_numbers": ["20.0%"],
+    "ground_truth_chunks": ["Revenue grew by 20.0% from 2023 to 2024"]
+  }
+]
