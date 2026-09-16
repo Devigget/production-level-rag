@@ -67,7 +67,10 @@ class VectorSearcher:
             content=str(chunk.get("content", "")),
             source_type="vector_chunk",
             initial_score=float(score or 0.0),
-            metadata=dict(chunk.get("metadata", {})),
+            metadata={
+                **dict(chunk.get("metadata", {})),
+                "source_file": chunk.get("source_file", ""),
+            },
         )
 
 

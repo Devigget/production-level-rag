@@ -22,6 +22,16 @@ def test_output_guard_normalizes_currency_scale_and_percentages():
     assert result.unverified_numbers == []
 
 
+def test_output_guard_accepts_formatted_table_values_and_years():
+    result = verify_numerical_grounding(
+        "In Q2 2025, Net Income was $550,000, which exceeded the target.",
+        [{"content": "| Net Income | $350000 | $550000 | Exceeds target |"}],
+    )
+
+    assert result.passed
+    assert result.unverified_numbers == []
+
+
 def test_workflow_retrieves_generates_and_validates_mock_response():
     retrieval = MagicMock()
     retrieval.retrieve.return_value = HybridSearchResult(

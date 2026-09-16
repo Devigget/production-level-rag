@@ -11,9 +11,13 @@ from typing import Any
 from fastapi import FastAPI, File, HTTPException, UploadFile
 
 from src.ingestion.pipeline import FinancialIngestionPipeline
+from src.indexing.config import IndexingSettings
 from src.retrieval.models import HybridSearchResult
+from src.retrieval.engine import HybridRetrievalEngine
+from src.retrieval.graph_search import GraphSearcher
+from src.retrieval.vector_search import VectorSearcher
 from src.api.schemas import ChatRequest, ChatResponse, HealthResponse, UploadResponse
-from src.orchestration.graph import build_workflow
+from src.orchestration.graph import build_workflow, create_llm_invoker
 
 
 class _EmptyRetrievalEngine:
@@ -23,12 +27,18 @@ class _EmptyRetrievalEngine:
         return HybridSearchResult(query=query, ranked_contexts=[], total_candidates_evaluated=0)
 
 
-def _default_llm(_: str) -> str:
-    return "I could not find supporting financial context for that question."
-
-
 def _build_default_workflow() -> Any:
-    return build_workflow(_EmptyRetrievalEngine(), _default_llm)
+    settings = IndexingSettings()
+    if settings.qdrant_url == ":memory:":
+        return build_workflow(_EmptyRetrievalEngine(), create_llm_invoker())
+    try:
+        retrieval_engine = HybridRetrievalEngine(
+            VectorSearcher(settings=settings),
+            GraphSearcher(settings=settings),
+        )
+    except Exception:
+        retrieval_engine = _EmptyRetrievalEngine()
+    return build_workflow(retrieval_engine, create_llm_invoker())
 
 
 app = FastAPI(title="Financial RAG API", version="1.0.0")
@@ -82,6 +92,10 @@ def chat(request: ChatRequest) -> ChatResponse:
     )
 
 
+from src.indexing.indexer import FinancialIndexer
+
+indexer = FinancialIndexer() if IndexingSettings().qdrant_url != ":memory:" else None
+
 @app.post("/api/upload", response_model=UploadResponse)
 def upload(file: UploadFile = File(...)) -> UploadResponse:
     filename = Path(file.filename or "upload").name
@@ -95,6 +109,12 @@ def upload(file: UploadFile = File(...)) -> UploadResponse:
         with os.fdopen(descriptor, "wb") as temporary_file:
             temporary_file.write(file.file.read())
         result = app.state.ingestion_pipeline.ingest(temporary_path)
+        for chunk in result.chunks:
+            sheet_name = chunk.metadata.get("sheet_name", "document")
+            chunk.chunk_id = f"{filename}:{sheet_name}"
+            chunk.source_file = filename
+        if indexer is not None:
+            indexer.index(result.chunks)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Unable to ingest file: {exc}") from exc
     finally:

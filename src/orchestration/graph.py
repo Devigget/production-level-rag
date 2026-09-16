@@ -1,7 +1,10 @@
 """LangGraph workflow for guarded hybrid financial question answering."""
 
+import os
 from collections.abc import Callable
 from typing import Any
+
+from dotenv import load_dotenv
 
 from .guardrails.input_guard import check_input
 from .guardrails.output_guard import verify_numerical_grounding
@@ -86,3 +89,30 @@ def build_workflow(retrieval_engine: Any, llm_invoker: Callable[[str], str]) -> 
 
 build_graph = build_workflow
 create_workflow = build_workflow
+
+
+class GeminiLLMInvoker:
+    """Callable Gemini adapter used by the workflow's generation node."""
+
+    def __init__(self, api_key: str, model: str = "gemini-2.5-flash"):
+        from google import genai
+
+        self.model = model
+        self.client = genai.Client(api_key=api_key)
+
+    def __call__(self, prompt: str) -> str:
+        response = self.client.models.generate_content(model=self.model, contents=prompt)
+        return response.text or ""
+
+
+def create_llm_invoker() -> Callable[[str], str]:
+    """Create the configured LLM invoker, retaining an offline fallback."""
+
+    load_dotenv()
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return lambda _: "I could not find supporting financial context for that question."
+    try:
+        return GeminiLLMInvoker(api_key, os.getenv("GEMINI_MODEL", "gemini-2.5-flash"))
+    except ImportError:
+        return lambda _: "I could not find supporting financial context for that question."

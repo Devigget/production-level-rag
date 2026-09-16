@@ -50,7 +50,11 @@ class GraphExtractor:
                         source_entity=chunk.source_file,
                         target_entity=metric,
                         relationship_type="REPORTED_METRIC",
-                        properties={"chunk_id": chunk.chunk_id},
+                        properties={
+                            "chunk_id": chunk.chunk_id,
+                            "content": chunk.content,
+                            "source_file": chunk.source_file,
+                        },
                     )
                 )
                 for header, value in zip(headers[1:], row[1:]):
@@ -62,7 +66,12 @@ class GraphExtractor:
                             source_entity=metric,
                             target_entity=header,
                             relationship_type="HAS_VALUE",
-                            properties={"value": value, "chunk_id": chunk.chunk_id},
+                            properties={
+                                "value": value,
+                                "chunk_id": chunk.chunk_id,
+                                "content": chunk.content,
+                                "source_file": chunk.source_file,
+                            },
                         )
                     )
         else:
@@ -74,7 +83,11 @@ class GraphExtractor:
                         source_entity=chunk.source_file,
                         target_entity=metric,
                         relationship_type="MENTIONS",
-                        properties={"chunk_id": chunk.chunk_id},
+                        properties={
+                            "chunk_id": chunk.chunk_id,
+                            "content": chunk.content,
+                            "source_file": chunk.source_file,
+                        },
                     )
                 )
         return ExtractedGraphData(entities=list(entities.values()), relations=relations)

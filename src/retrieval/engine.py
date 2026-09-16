@@ -33,6 +33,16 @@ class HybridRetrievalEngine:
         unique: dict[str, RetrievedContext] = {}
         for context in contexts:
             existing = unique.get(context.id)
-            if existing is None or context.initial_score > existing.initial_score:
+            if existing is None or HybridRetrievalEngine._is_better_context(context, existing):
                 unique[context.id] = context
         return list(unique.values())
+
+    @staticmethod
+    def _is_better_context(candidate: RetrievedContext, existing: RetrievedContext) -> bool:
+        candidate_has_table = "|" in candidate.content and "\n" in candidate.content
+        existing_has_table = "|" in existing.content and "\n" in existing.content
+        if candidate_has_table != existing_has_table:
+            return candidate_has_table
+        if len(candidate.content) != len(existing.content):
+            return len(candidate.content) > len(existing.content)
+        return candidate.initial_score > existing.initial_score
