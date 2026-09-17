@@ -23,7 +23,7 @@ The core end-to-end flow is implemented and tested:
 Upload document
     -> Parse and normalize
     -> Create FinancialChunk objects
-    -> Index in Qdrant and Neo4j
+    -> Index in Qdrant and Neo4j visualization
     -> Retrieve relevant vector and graph context
     -> Rerank candidates
     -> Generate a guarded answer
