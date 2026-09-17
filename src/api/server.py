@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 import time
@@ -9,10 +10,11 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 
 from src.ingestion.pipeline import FinancialIngestionPipeline
 from src.indexing.config import IndexingSettings
-from src.retrieval.models import HybridSearchResult
+from src.retrieval.models import HybridSearchResult, RetrievalQuery
 from src.retrieval.engine import HybridRetrievalEngine
 from src.retrieval.graph_search import GraphSearcher
 from src.retrieval.vector_search import VectorSearcher
@@ -23,8 +25,9 @@ from src.orchestration.graph import build_workflow, create_llm_invoker
 class _EmptyRetrievalEngine:
     """Dependency-safe default until vector and graph stores are configured."""
 
-    def retrieve(self, query: str) -> HybridSearchResult:
-        return HybridSearchResult(query=query, ranked_contexts=[], total_candidates_evaluated=0)
+    def retrieve(self, query: RetrievalQuery | str) -> HybridSearchResult:
+        query_text = query.query_text if isinstance(query, RetrievalQuery) else query
+        return HybridSearchResult(query=query_text, ranked_contexts=[], total_candidates_evaluated=0)
 
 
 def _build_default_workflow() -> Any:
@@ -67,7 +70,13 @@ def health() -> HealthResponse:
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(request: ChatRequest) -> ChatResponse:
     started = time.perf_counter()
-    result = app.state.workflow.invoke({"raw_query": request.query})
+    result = app.state.workflow.invoke(
+        {
+            "raw_query": request.query,
+            "top_n": request.top_n,
+            "enable_graph_expansion": request.enable_graph_expansion,
+        }
+    )
     final_output = result.get("final_output")
     contexts = result.get("retrieved_contexts", [])
 
@@ -92,6 +101,51 @@ def chat(request: ChatRequest) -> ChatResponse:
     )
 
 
+@app.post("/api/chat/stream")
+def chat_stream(request: ChatRequest) -> StreamingResponse:
+    """Stream a guarded answer as SSE events while preserving final citations."""
+    started = time.perf_counter()
+    result = app.state.workflow.invoke(
+        {
+            "raw_query": request.query,
+            "top_n": request.top_n,
+            "enable_graph_expansion": request.enable_graph_expansion,
+        }
+    )
+    final_output = result.get("final_output")
+    contexts = result.get("retrieved_contexts", [])
+
+    if final_output is None:
+        answer = "This request could not be processed safely."
+        citations: list[dict[str, Any]] = []
+        numerical_fidelity_passed = False
+        query = result.get("sanitized_query") or request.query
+    else:
+        answer = final_output.answer
+        citations = [citation.model_dump() for citation in final_output.citations]
+        numerical_fidelity_passed = final_output.numerical_fidelity_passed
+        query = final_output.query
+
+    payload = {
+        "query": query,
+        "citations": citations,
+        "graph_nodes_traversed": _graph_nodes(contexts),
+        "numerical_fidelity_passed": numerical_fidelity_passed,
+        "execution_time_ms": (time.perf_counter() - started) * 1000,
+    }
+
+    def events():
+        for offset in range(0, len(answer), 24):
+            yield f"event: token\ndata: {json.dumps({'text': answer[offset:offset + 24]})}\n\n"
+        yield f"event: complete\ndata: {json.dumps({'answer': answer, **payload})}\n\n"
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 from src.indexing.indexer import FinancialIndexer
 
 indexer = FinancialIndexer() if IndexingSettings().qdrant_url != ":memory:" else None
@@ -100,7 +154,7 @@ indexer = FinancialIndexer() if IndexingSettings().qdrant_url != ":memory:" else
 def upload(file: UploadFile = File(...)) -> UploadResponse:
     filename = Path(file.filename or "upload").name
     suffix = Path(filename).suffix.lower()
-    if suffix not in {".csv", ".jpeg", ".pdf", ".png", ".xlsx"}:
+    if suffix not in {".csv", ".docx", ".jpeg", ".jpg", ".pdf", ".png", ".txt", ".xlsx"}:
         raise HTTPException(status_code=415, detail="Unsupported file type")
 
     temporary_path: str | None = None

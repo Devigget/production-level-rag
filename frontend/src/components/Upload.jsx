@@ -21,5 +21,5 @@ export default function Upload({ onUploaded }) {
     }
   }
 
-  return <div className="upload-widget"><div className="widget-heading"><span className="section-kicker">Context library</span><span className="file-count">PDF · XLSX · CSV</span></div><button className="drop-zone" onClick={() => inputRef.current?.click()} disabled={busy}><span className="upload-icon">↑</span><strong>{busy ? 'Indexing...' : 'Add a report'}</strong><small>Drop or browse financial files</small></button><input ref={inputRef} type="file" hidden accept=".pdf,.xlsx,.csv,.png,.jpeg" onChange={(event) => upload(event.target.files?.[0])} /></div>
+  return <div className="upload-widget"><div className="widget-heading"><span className="section-kicker">Context library</span><span className="file-count">PDF · XLSX · CSV · DOCX · TXT · OCR</span></div><button className="drop-zone" onClick={() => inputRef.current?.click()} disabled={busy}><span className="upload-icon">↑</span><strong>{busy ? 'Indexing...' : 'Add a report'}</strong><small>Drop or browse financial files</small></button><input ref={inputRef} type="file" hidden accept=".pdf,.xlsx,.csv,.docx,.txt,.png,.jpg,.jpeg" onChange={(event) => upload(event.target.files?.[0])} /></div>
 }

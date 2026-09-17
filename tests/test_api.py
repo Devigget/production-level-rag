@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 from fastapi.testclient import TestClient
 
 from src.api.server import app
@@ -33,6 +35,39 @@ def test_chat_route_returns_response_contract():
     assert payload["query"] == "What was revenue?"
     assert isinstance(payload["citations"], list)
     assert isinstance(payload["execution_time_ms"], float)
+
+
+def test_chat_route_applies_retrieval_controls():
+    workflow = MagicMock()
+    workflow.invoke.return_value = {
+        "final_output": None,
+        "retrieved_contexts": [],
+        "sanitized_query": "revenue",
+    }
+    original_workflow = app.state.workflow
+    app.state.workflow = workflow
+    try:
+        response = client.post(
+            "/api/chat",
+            json={"query": "revenue", "top_n": 2, "enable_graph_expansion": False},
+        )
+    finally:
+        app.state.workflow = original_workflow
+
+    assert response.status_code == 200
+    workflow.invoke.assert_called_once_with(
+        {"raw_query": "revenue", "top_n": 2, "enable_graph_expansion": False}
+    )
+
+
+def test_chat_stream_route_returns_token_and_complete_events():
+    response = client.post("/api/chat/stream", json={"query": "What was revenue?"})
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert "event: token" in response.text
+    assert "event: complete" in response.text
+    assert '"citations"' in response.text
 
 
 def test_chat_route_blocks_prompt_injection():

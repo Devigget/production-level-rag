@@ -27,6 +27,8 @@ class FinancialAnswer(BaseModel):
 
 class AgentWorkflowState(TypedDict):
     raw_query: str
+    top_n: int
+    enable_graph_expansion: bool
     sanitized_query: str
     is_safe: bool
     retrieved_contexts: list[dict[str, Any]]

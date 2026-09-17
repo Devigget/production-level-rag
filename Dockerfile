@@ -19,7 +19,7 @@ ENV PYTHONUNBUFFERED=1
 RUN groupadd --system appuser \
     && useradd --system --gid appuser --create-home appuser \
     && apt-get update \
-    && apt-get install --no-install-recommends --yes libgomp1 \
+    && apt-get install --no-install-recommends --yes libgomp1 tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder "${VIRTUAL_ENV}" "${VIRTUAL_ENV}"

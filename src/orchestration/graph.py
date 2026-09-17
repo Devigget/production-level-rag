@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from .guardrails.input_guard import check_input
 from .guardrails.output_guard import verify_numerical_grounding
 from .prompts import build_user_prompt
+from src.retrieval.models import RetrievalQuery
 from .state import AgentWorkflowState, Citation, FinancialAnswer
 
 
@@ -47,7 +48,15 @@ def build_workflow(retrieval_engine: Any, llm_invoker: Callable[[str], str]) -> 
                 "errors": [*state.get("errors", []), *result.violations]}
 
     def retrieve_node(state: AgentWorkflowState) -> AgentWorkflowState:
-        result = retrieval_engine.retrieve(state["sanitized_query"])
+        if "top_n" not in state and "enable_graph_expansion" not in state:
+            result = retrieval_engine.retrieve(state["sanitized_query"])
+        else:
+            retrieval_query = RetrievalQuery(
+                query_text=state["sanitized_query"],
+                final_top_n=state.get("top_n", 5),
+                top_k_graph=10 if state.get("enable_graph_expansion", True) else 0,
+            )
+            result = retrieval_engine.retrieve(retrieval_query)
         contexts = [_as_context_dict(item) for item in result.ranked_contexts]
         return {**state, "retrieved_contexts": contexts}
 

@@ -9,18 +9,44 @@ export default function Chat({ onInspect }) {
     event.preventDefault()
     const trimmed = query.trim()
     if (!trimmed || loading) return
-    setMessages((current) => [...current, { role: 'user', answer: trimmed }])
+    const assistantIndex = messages.length + 1
+    setMessages((current) => [...current, { role: 'user', answer: trimmed }, { role: 'assistant', answer: '', citations: [] }])
     setQuery('')
     setLoading(true)
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: trimmed }),
       })
       if (!response.ok) throw new Error('Chat request failed')
-      const answer = await response.json()
-      setMessages((current) => [...current, { role: 'assistant', ...answer }])
+      if (!response.body) throw new Error('Streaming is not supported by this browser')
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let streamedAnswer = ''
+      let metadata = {}
+
+      const updateAssistant = (patch) => setMessages((current) => current.map((message, index) => index === assistantIndex ? { ...message, ...patch } : message))
+      while (true) {
+        const { value, done } = await reader.read()
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done })
+        const events = buffer.split('\n\n')
+        buffer = events.pop() || ''
+        for (const event of events) {
+          const dataLine = event.split('\n').find((line) => line.startsWith('data: '))
+          if (!dataLine) continue
+          const data = JSON.parse(dataLine.slice(6))
+          if (event.startsWith('event: token')) {
+            streamedAnswer += data.text
+            updateAssistant({ answer: streamedAnswer })
+          } else if (event.startsWith('event: complete')) {
+            metadata = data
+            updateAssistant(data)
+          }
+        }
+        if (done) break
+      }
     } catch (error) {
       setMessages((current) => [...current, { role: 'assistant', answer: error.message, citations: [] }])
     } finally {

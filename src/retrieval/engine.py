@@ -17,7 +17,11 @@ class HybridRetrievalEngine:
         vector_contexts = self.vector_search.search(
             query.query_text, query.top_k_vector, query.filters
         )
-        graph_contexts = self.graph_search.search(query.query_text, query.top_k_graph)
+        graph_contexts = (
+            self.graph_search.search(query.query_text, query.top_k_graph)
+            if query.top_k_graph > 0
+            else []
+        )
         candidates = self._deduplicate([*vector_contexts, *graph_contexts])
         ranked = self.reranker.rerank(query.query_text, candidates, query.final_top_n)
         return HybridSearchResult(

@@ -3,15 +3,15 @@
 from pathlib import Path
 from typing import Union
 
-from PIL import Image
-
 from .models import FinancialChunk, IngestionResult, UnsupportedFileTypeError
+from .parsers.document import parse_docx_file, parse_text_file
+from .parsers.image import parse_image
 from .parsers.pdf import parse_pdf
 from .parsers.table import parse_table_file
 
 
 PathLike = Union[str, Path]
-SUPPORTED_EXTENSIONS = {".csv", ".jpeg", ".pdf", ".png", ".xlsx"}
+SUPPORTED_EXTENSIONS = {".csv", ".docx", ".jpeg", ".jpg", ".pdf", ".png", ".txt", ".xlsx"}
 
 
 class FinancialIngestionPipeline:
@@ -31,8 +31,12 @@ class FinancialIngestionPipeline:
             chunks = parse_pdf(path)
         elif extension in {".csv", ".xlsx"}:
             chunks = parse_table_file(path)
+        elif extension == ".txt":
+            chunks = parse_text_file(path)
+        elif extension == ".docx":
+            chunks = parse_docx_file(path)
         else:
-            chunks = [_image_metadata_chunk(path)]
+            chunks = parse_image(path)
         return IngestionResult(
             source_file=str(path),
             total_chunks=len(chunks),
@@ -42,20 +46,3 @@ class FinancialIngestionPipeline:
     def parse(self, file_path: PathLike) -> IngestionResult:
         """Alias for ingest for callers that use parser terminology."""
         return self.ingest(file_path)
-
-
-def _image_metadata_chunk(path: Path) -> FinancialChunk:
-    with Image.open(path) as image:
-        metadata = {
-            "format": image.format,
-            "width": image.width,
-            "height": image.height,
-            "mode": image.mode,
-        }
-    return FinancialChunk(
-        chunk_id=path.name,
-        content=f"Receipt image: {path.name}",
-        chunk_type="receipt_metadata",
-        source_file=str(path),
-        metadata=metadata,
-    )

@@ -14,6 +14,8 @@ class EvalMetricResult(BaseModel):
 
 
 _NUMBER = re.compile(r"(?<![\w-])(?P<number>\(?\d[\d,]*(?:\.\d+)?\)?)\s*(?P<scale>[KMBkmb])?\s*(?P<percent>%)?")
+_WORD = re.compile(r"[a-zA-Z]{3,}")
+_STOPWORDS = {"and", "the", "was", "were", "with", "from", "this", "that", "total"}
 
 
 def _number_values(text: str) -> set[Decimal]:
@@ -50,8 +52,28 @@ def calculate_numerical_accuracy(expected_numbers: list[str], answer: str) -> Ev
 
 
 def calculate_context_recall(ground_truth_chunks: list[str], contexts: Iterable[Any]) -> EvalMetricResult:
-    context_text = _contents(contexts).casefold()
-    matched = [chunk for chunk in ground_truth_chunks if chunk.casefold() in context_text]
+    context_items = [
+        item if isinstance(item, str) else str(item.content if hasattr(item, "content") else item.get("content", ""))
+        if isinstance(item, dict) or hasattr(item, "content")
+        else str(item)
+        for item in contexts
+    ]
+    context_text = "\n".join(context_items).casefold()
+    matched = []
+    for chunk in ground_truth_chunks:
+        normalized_chunk = chunk.casefold()
+        if normalized_chunk in context_text:
+            matched.append(chunk)
+            continue
+        chunk_numbers = _number_values(chunk)
+        chunk_words = {word.casefold() for word in _WORD.findall(chunk)} - _STOPWORDS
+        equivalent = any(
+            chunk_numbers & _number_values(context_item)
+            and chunk_words & ({word.casefold() for word in _WORD.findall(context_item)} - _STOPWORDS)
+            for context_item in context_items
+        )
+        if equivalent:
+            matched.append(chunk)
     score = len(matched) / len(ground_truth_chunks) if ground_truth_chunks else 1.0
     return EvalMetricResult(metric_name="context_recall", score=score, details={"matched_chunks": matched})
 

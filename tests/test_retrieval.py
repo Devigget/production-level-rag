@@ -49,6 +49,21 @@ def test_engine_uses_mock_retrieval_and_limits_results():
     assert len(result.ranked_contexts) == 1
 
 
+def test_engine_skips_graph_search_when_graph_expansion_is_disabled():
+    vector = MagicMock()
+    vector.search.return_value = [context("vector-only", 0.8)]
+    graph = MagicMock()
+    reranker = MagicMock()
+    reranker.rerank.return_value = [context("vector-only", 0.8)]
+
+    result = HybridRetrievalEngine(vector, graph, reranker).retrieve(
+        RetrievalQuery(query_text="revenue", top_k_graph=0)
+    )
+
+    graph.search.assert_not_called()
+    assert result.ranked_contexts[0].id == "vector-only"
+
+
 def test_empty_retrieval_returns_empty_result_without_reranking():
     vector = MagicMock()
     vector.search.return_value = []

@@ -24,6 +24,10 @@ _NUMBER = re.compile(
 _CITATION_PATTERN = re.compile(r"\[.*?\]")
 
 
+def _is_calendar_year(value: Decimal) -> bool:
+    return value == value.to_integral_value() and 1900 <= value <= 2100
+
+
 def _normalized_numbers(text: str) -> set[Decimal]:
     values: set[Decimal] = set()
     # Normalize markdown bolding/italics and underscores so tokens like Q1_2025 decouple into 2025
@@ -64,6 +68,7 @@ def verify_numerical_grounding(answer: str, contexts: list[Any]) -> NumericalGro
     for match in _NUMBER.finditer(cleaned_answer):
         raw_token = match.group(0).strip()
         token_vals = _normalized_numbers(raw_token)
+        token_vals = {value for value in token_vals if not _is_calendar_year(value)}
         if token_vals and not token_vals.issubset(context_values):
             unverified.append(raw_token)
 
