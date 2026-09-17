@@ -7,19 +7,19 @@ import os
 import tempfile
 import time
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
-from src.ingestion.pipeline import FinancialIngestionPipeline
+from src.api.schemas import ChatRequest, ChatResponse, HealthResponse, UploadResponse
 from src.indexing.config import IndexingSettings
-from src.retrieval.models import HybridSearchResult, RetrievalQuery
+from src.ingestion.pipeline import FinancialIngestionPipeline
+from src.orchestration.graph import build_workflow, create_llm_invoker
 from src.retrieval.engine import HybridRetrievalEngine
 from src.retrieval.graph_search import GraphSearcher
+from src.retrieval.models import HybridSearchResult, RetrievalQuery
 from src.retrieval.vector_search import VectorSearcher
-from src.api.schemas import ChatRequest, ChatResponse, HealthResponse, UploadResponse
-from src.orchestration.graph import build_workflow, create_llm_invoker
 
 
 class _EmptyRetrievalEngine:
@@ -39,7 +39,7 @@ def _build_default_workflow() -> Any:
             VectorSearcher(settings=settings),
             GraphSearcher(settings=settings),
         )
-    except Exception:
+    except Exception:  # noqa: BLE001
         retrieval_engine = _EmptyRetrievalEngine()
     return build_workflow(retrieval_engine, create_llm_invoker())
 
@@ -151,7 +151,7 @@ from src.indexing.indexer import FinancialIndexer
 indexer = FinancialIndexer() if IndexingSettings().qdrant_url != ":memory:" else None
 
 @app.post("/api/upload", response_model=UploadResponse)
-def upload(file: UploadFile = File(...)) -> UploadResponse:
+def upload(file: Annotated[UploadFile, File(...)]) -> UploadResponse:
     filename = Path(file.filename or "upload").name
     suffix = Path(filename).suffix.lower()
     if suffix not in {".csv", ".docx", ".jpeg", ".jpg", ".pdf", ".png", ".txt", ".xlsx"}:

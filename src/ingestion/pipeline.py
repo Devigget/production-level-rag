@@ -1,16 +1,14 @@
 """Unified financial document ingestion pipeline."""
 
 from pathlib import Path
-from typing import Union
 
-from .models import FinancialChunk, IngestionResult, UnsupportedFileTypeError
+from .models import IngestionResult, UnsupportedFileTypeError
 from .parsers.document import parse_docx_file, parse_text_file
 from .parsers.image import parse_image
 from .parsers.pdf import parse_pdf
 from .parsers.table import parse_table_file
 
-
-PathLike = Union[str, Path]
+PathLike = str | Path
 SUPPORTED_EXTENSIONS = {".csv", ".docx", ".jpeg", ".jpg", ".pdf", ".png", ".txt", ".xlsx"}
 
 

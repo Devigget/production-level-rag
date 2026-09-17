@@ -60,7 +60,7 @@ class GraphExtractor:
                 for header, value in zip(headers[1:], row[1:]):
                     if not header or not value:
                         continue
-                    add_entity(header, "Quarter" if re.search(r"Q\d", header, re.I) else "Metric")
+                    add_entity(header, "Quarter" if re.search(r"Q\d", header, re.IGNORECASE) else "Metric")
                     relations.append(
                         GraphRelation(
                             source_entity=metric,
@@ -75,7 +75,7 @@ class GraphExtractor:
                         )
                     )
         else:
-            for phrase in re.findall(r"\b(?:Revenue|Expenses?|Profit|Income|EBITDA)\b", chunk.content, re.I):
+            for phrase in re.findall(r"\b(?:Revenue|Expenses?|Profit|Income|EBITDA)\b", chunk.content, re.IGNORECASE):
                 metric = phrase.title()
                 add_entity(metric, "Metric")
                 relations.append(

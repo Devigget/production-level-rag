@@ -1,6 +1,6 @@
 """Typed state and structured responses used by the orchestration graph."""
 
-from typing import Any, Optional, TypedDict
+from typing import Any, TypedDict
 
 from pydantic import BaseModel, Field
 
@@ -33,5 +33,5 @@ class AgentWorkflowState(TypedDict):
     is_safe: bool
     retrieved_contexts: list[dict[str, Any]]
     raw_llm_response: str
-    final_output: Optional[FinancialAnswer]
+    final_output: FinancialAnswer | None
     errors: list[str]

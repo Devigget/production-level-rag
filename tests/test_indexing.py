@@ -2,12 +2,12 @@ from unittest.mock import MagicMock
 
 from qdrant_client import QdrantClient
 
-from src.ingestion.models import FinancialChunk
 from src.indexing.config import IndexingSettings
 from src.indexing.graph_extractor import GraphExtractor
 from src.indexing.graph_store import GraphStore
 from src.indexing.indexer import FinancialIndexer
 from src.indexing.vector_store import VectorStore
+from src.ingestion.models import FinancialChunk
 
 
 def sample_chunk() -> FinancialChunk:

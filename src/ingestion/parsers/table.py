@@ -1,14 +1,12 @@
 """Parsers for CSV and Excel financial tables."""
 
 from pathlib import Path
-from typing import List, Union
 
 import pandas as pd
 
 from ..models import FinancialChunk
 
-
-PathLike = Union[str, Path]
+PathLike = str | Path
 
 
 def dataframe_to_markdown(dataframe: pd.DataFrame) -> str:
@@ -30,7 +28,7 @@ def _escape_cell(value: object) -> str:
     return str(value).replace("|", "\\|").replace("\n", " ")
 
 
-def parse_table_file(file_path: PathLike) -> List[FinancialChunk]:
+def parse_table_file(file_path: PathLike) -> list[FinancialChunk]:
     """Parse a CSV or workbook into one Markdown table chunk per sheet."""
     path = Path(file_path)
     suffix = path.suffix.lower()
@@ -51,8 +49,8 @@ def parse_table_file(file_path: PathLike) -> List[FinancialChunk]:
                 source_file=str(path),
                 metadata={
                     "sheet_name": str(sheet_name),
-                    "row_count": int(len(dataframe)),
-                    "column_count": int(len(dataframe.columns)),
+                    "row_count": len(dataframe),
+                    "column_count": len(dataframe.columns),
                 },
             )
         )
@@ -62,5 +60,5 @@ def parse_table_file(file_path: PathLike) -> List[FinancialChunk]:
 class TableParser:
     """Object-oriented facade for CSV and Excel parsing."""
 
-    def parse(self, file_path: PathLike) -> List[FinancialChunk]:
+    def parse(self, file_path: PathLike) -> list[FinancialChunk]:
         return parse_table_file(file_path)

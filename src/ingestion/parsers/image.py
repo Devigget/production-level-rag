@@ -1,18 +1,16 @@
 """OCR parser for image-based financial documents and receipts."""
 
 from pathlib import Path
-from typing import List, Union
 
-from PIL import Image
 import pytesseract
+from PIL import Image
 
 from ..models import FinancialChunk
 
+PathLike = str | Path
 
-PathLike = Union[str, Path]
 
-
-def parse_image(file_path: PathLike) -> List[FinancialChunk]:
+def parse_image(file_path: PathLike) -> list[FinancialChunk]:
     """Extract searchable OCR text while retaining image metadata."""
     path = Path(file_path)
     with Image.open(path) as image:

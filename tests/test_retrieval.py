@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 from src.retrieval.engine import HybridRetrievalEngine
 from src.retrieval.graph_search import GraphSearcher
-from src.retrieval.models import RetrievedContext, RetrievalQuery
+from src.retrieval.models import RetrievalQuery, RetrievedContext
 from src.retrieval.reranker import CrossEncoderReranker
 
 

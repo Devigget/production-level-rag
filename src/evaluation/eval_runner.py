@@ -1,13 +1,17 @@
 """Batch evaluation runner for the guarded orchestration workflow."""
 
-import json
 import argparse
+import json
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-from .metrics import calculate_context_recall, calculate_faithfulness, calculate_numerical_accuracy
+from .metrics import (
+    calculate_context_recall,
+    calculate_faithfulness,
+    calculate_numerical_accuracy,
+)
 
 
 class GoldenTestCase(BaseModel):

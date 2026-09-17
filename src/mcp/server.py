@@ -2,7 +2,9 @@
 
 from typing import Any
 
-from .tools import FinancialCalculator, financial_search, inspect_graph_entity
+from .tools import FinancialCalculator
+from .tools import financial_search as run_financial_search
+from .tools import inspect_graph_entity as run_inspect_graph_entity
 
 try:
     from mcp.server.fastmcp import FastMCP
@@ -45,13 +47,13 @@ def create_server(
     def financial_search(query: str) -> dict[str, Any]:
         if retrieval_engine is None:
             raise RuntimeError("retrieval_engine is not configured")
-        return financial_search(retrieval_engine, query)
+        return run_financial_search(retrieval_engine, query)
 
     @app.tool()
     def inspect_graph_entity(entity_name: str) -> dict[str, Any]:
         if graph_driver is None:
             raise RuntimeError("graph_driver is not configured")
-        return inspect_graph_entity(graph_driver, entity_name)
+        return run_inspect_graph_entity(graph_driver, entity_name)
 
     return app
 
