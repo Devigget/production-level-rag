@@ -1,6 +1,6 @@
 """Data contracts for financial document ingestion."""
 
-from typing import Any, Dict, List
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -10,13 +10,13 @@ class FinancialChunk(BaseModel):
     content: str
     chunk_type: str
     source_file: str
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class IngestionResult(BaseModel):
     source_file: str
     total_chunks: int
-    chunks: List[FinancialChunk]
+    chunks: list[FinancialChunk]
 
 
 class UnsupportedFileTypeError(ValueError):

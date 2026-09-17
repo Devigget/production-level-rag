@@ -8,7 +8,6 @@ from src.indexing.config import IndexingSettings
 
 from .models import RetrievedContext
 
-
 GRAPH_QUERY = """
 MATCH (entity:FinancialEntity)
 WHERE toLower($query_text) CONTAINS toLower(entity.name)

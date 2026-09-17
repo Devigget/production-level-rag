@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from .models import HybridSearchResult, RetrievedContext, RetrievalQuery
+from .models import HybridSearchResult, RetrievalQuery, RetrievedContext
 from .reranker import CrossEncoderReranker
 
 

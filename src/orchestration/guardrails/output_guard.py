@@ -3,6 +3,7 @@
 import re
 from decimal import Decimal, InvalidOperation
 from typing import Any
+
 from pydantic import BaseModel, Field
 
 

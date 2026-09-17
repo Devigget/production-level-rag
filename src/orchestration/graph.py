@@ -6,10 +6,11 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+from src.retrieval.models import RetrievalQuery
+
 from .guardrails.input_guard import check_input
 from .guardrails.output_guard import verify_numerical_grounding
 from .prompts import build_user_prompt
-from src.retrieval.models import RetrievalQuery
 from .state import AgentWorkflowState, Citation, FinancialAnswer
 
 

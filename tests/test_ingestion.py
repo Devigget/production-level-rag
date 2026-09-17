@@ -119,7 +119,8 @@ def test_pdf_table_extraction_is_markdown_and_page_aware(
             return ""
 
     class FakePDF:
-        pages = [FakePage()]
+        def __init__(self):
+            self.pages = [FakePage()]
 
         def __enter__(self):
             return self

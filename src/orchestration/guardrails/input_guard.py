@@ -4,7 +4,6 @@ import re
 
 from ..state import GuardrailCheckResult
 
-
 _PII_PATTERNS = (
     ("credit_card", re.compile(r"(?<!\d)(?:\d[ -]?){13,19}(?!\d)")),
     ("iban", re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b", re.IGNORECASE)),

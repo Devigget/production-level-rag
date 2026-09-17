@@ -1,17 +1,15 @@
 """Parsers for plain-text and Word documents."""
 
 from pathlib import Path
-from typing import List, Union
 
 from docx import Document
 
 from ..models import FinancialChunk
 
+PathLike = str | Path
 
-PathLike = Union[str, Path]
 
-
-def parse_text_file(file_path: PathLike) -> List[FinancialChunk]:
+def parse_text_file(file_path: PathLike) -> list[FinancialChunk]:
     """Read a UTF-8 text document as a searchable content chunk."""
     path = Path(file_path)
     content = path.read_text(encoding="utf-8-sig").strip()
@@ -27,7 +25,7 @@ def parse_text_file(file_path: PathLike) -> List[FinancialChunk]:
     ]
 
 
-def parse_docx_file(file_path: PathLike) -> List[FinancialChunk]:
+def parse_docx_file(file_path: PathLike) -> list[FinancialChunk]:
     """Extract non-empty paragraphs from a Word document as searchable text."""
     path = Path(file_path)
     document = Document(path)
@@ -48,7 +46,7 @@ def parse_docx_file(file_path: PathLike) -> List[FinancialChunk]:
 class DocumentParser:
     """Object-oriented facade for plain-text and Word parsing."""
 
-    def parse(self, file_path: PathLike) -> List[FinancialChunk]:
+    def parse(self, file_path: PathLike) -> list[FinancialChunk]:
         suffix = Path(file_path).suffix.lower()
         if suffix == ".txt":
             return parse_text_file(file_path)

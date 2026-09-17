@@ -1,8 +1,9 @@
 """Deterministic metrics for financial retrieval and answer evaluation."""
 
 import re
+from collections.abc import Iterable
 from decimal import Decimal, InvalidOperation
-from typing import Any, Iterable
+from typing import Any
 
 from pydantic import BaseModel, Field
 

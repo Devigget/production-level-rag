@@ -1,6 +1,7 @@
 """Cross-encoder reranking with an injectable model for tests and deployments."""
 
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from .models import RetrievedContext
 

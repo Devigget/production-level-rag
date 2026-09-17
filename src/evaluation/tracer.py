@@ -51,7 +51,7 @@ class Tracer:
             try:
                 self.client.flush()
             except (AttributeError, RuntimeError):
-                return None
+                return
 
     def trace(self, name: str) -> Callable[[Callable[P, R]], Callable[P, R]]:
         def decorator(function: Callable[P, R]) -> Callable[P, R]:

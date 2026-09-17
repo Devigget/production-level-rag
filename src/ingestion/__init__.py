@@ -5,7 +5,7 @@ from .pipeline import FinancialIngestionPipeline
 
 __all__ = [
     "FinancialChunk",
+    "FinancialIngestionPipeline",
     "IngestionResult",
     "UnsupportedFileTypeError",
-    "FinancialIngestionPipeline",
 ]
