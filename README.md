@@ -2,30 +2,55 @@
 
 A production-oriented Retrieval-Augmented Generation system for asking grounded questions about financial documents. Users can upload reports through a web interface, have them parsed and indexed, and ask questions whose answers include retrieved source evidence and numerical-grounding checks.
 
-## What It Does
+## Setup and Run
 
-- Accepts CSV, Excel, PDF, Word, plain-text, and image files.
-- Extracts tables, document text, Word paragraphs, and OCR text from images.
-- Indexes uploaded content in both Qdrant and Neo4j.
-- Combines vector retrieval, graph retrieval, and reranking.
-- Uses guarded orchestration for input safety and numerical grounding.
-- Provides a React chat interface with streaming responses.
-- Displays source citations and retrieved snippets in an evidence drawer.
-- Supports evaluation against a golden financial QA dataset.
+The recommended setup uses Docker Compose. It starts the frontend, backend, Qdrant, and Neo4j together, including the Tesseract OCR runtime used for image uploads.
 
-The system is designed to answer from retrieved document context rather than relying only on the language model's general knowledge. When context is insufficient, the answer-generation prompt instructs the model to say so instead of guessing.
+### 1. Prerequisites
 
+Install and start:
+
+- Docker Desktop with Docker Compose
+- Git
+- At least 4 GB of available memory for the service stack
+- An API key for a supported hosted LLM provider
+
+Check Docker before continuing:
+
+```powershell
+docker --version
+docker compose version
+```
+
+### 2. Get the project
+
+```powershell
 ## Current Status
+Set-Location production-level-rag
+```
 
+On macOS or Linux, use:
+
+```bash
+
+cd production-level-rag
+```
+
+### 3. Configure environment variables
+
+Create a file named `.env` in the repository root. This file is local-only and must not be committed.
+
+Choose one configured provider and supply its key. For example:
 The core end-to-end flow is implemented and tested:
 
 ```text
 Upload document
     -> Parse and normalize
     -> Create FinancialChunk objects
-    -> Index in Qdrant and Neo4j visualization
-    -> Retrieve relevant vector and graph context
-    -> Rerank candidates
+# Optional alternative provider settings:
+# LLM_PROVIDER=nvidia
+# NVIDIA_API_KEY=your-key
+# NVIDIA_MODEL=google/gemma-4-31b-it
     -> Generate a guarded answer
     -> Verify numerical grounding
     -> Stream answer and expose citations
@@ -33,36 +58,111 @@ Upload document
 
 The current test suite passes with **40 tests**. A deprecation warning from the test client may be shown by the installed dependency versions.
 
-## Supported Inputs
+The Compose file supplies the internal Qdrant and Neo4j connection defaults, so only the LLM settings are normally required. If no valid LLM key is configured, the backend starts but returns a safe fallback instead of generating answers.
+
+### 4. Build and start the services
 
 | Input | Processing |
 | --- | --- |
 | `.csv` | Parsed as a financial table |
 | `.xlsx` | Each worksheet is parsed as a separate table chunk |
-| `.pdf` | Tables and page text are extracted with page metadata |
+The first build downloads Python, Node, Tesseract, and application dependencies and may take several minutes. Check that all containers are running:
+
+```powershell
+docker compose ps
+```
+
+Wait until `backend` and `frontend` show `healthy`. Check the backend directly:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/api/health
+```
+
+Expected result:
+
+```text
+status service
+------ -------
+ok     financial-rag
+```
+
+### 5. Open the application
+
+Open the Ledger Lens interface at:
 | `.docx` | Non-empty Word paragraphs are extracted as text |
 | `.txt` | UTF-8 text is indexed as a searchable chunk |
 | `.png`, `.jpg`, `.jpeg` | OCR text is extracted with Tesseract; image metadata is retained as fallback |
 
 Images are optional. OCR is enabled in the Docker image through `tesseract-ocr` and the Python `pytesseract` wrapper.
 
-## Architecture
+### 6. Use the application
+
+1. Open http://localhost:3000.
+2. Select **Add a report** and upload a CSV, Excel, PDF, Word, TXT, PNG, JPG, or JPEG file.
+3. Wait for the indexing status to confirm that chunks were created.
+4. Ask a question about the uploaded document, such as `What was revenue in Q2 2025?`.
+5. Watch the answer stream into the chat.
+6. Select **Inspect evidence** to view source files, snippets, citations, numerical grounding status, and graph traversal details.
+
+The sample file at `data/samples/sample_pnl.csv` is useful for a first test. After uploading it, ask about revenue, operating expenses, or net income.
+
+### Stop and restart
+
+Stop the containers without deleting indexed data:
 
 ### Backend
-
+docker compose down
 - **FastAPI** exposes the HTTP API.
 - **LangGraph** orchestrates input guardrails, retrieval, generation, and output validation.
-- **Qdrant** stores dense vectors and serialized financial chunks.
+Start them again later:
 - **Neo4j** stores financial entities and relationships.
 - **Pydantic** defines API, ingestion, retrieval, and answer contracts.
-- **Pandas**, `openpyxl`, `pdfplumber`, `python-docx`, Pillow, and Tesseract handle document processing.
+docker compose up -d
 
 ### Retrieval flow
 
+
+To remove the containers and all persisted indexed data:
+
+```powershell
+docker compose down -v
+```
+
+Use `down -v` only when you intentionally want to rebuild the document corpus from scratch.
+
+### Troubleshooting
+
+**The frontend does not open:**
+
+```powershell
 1. The input guard checks the user query for prompt injection and sensitive data.
 2. Vector search finds semantically similar chunks.
+```
+
+Confirm that port `3000` is not already used by another application.
+
+**The backend is unhealthy:**
+
+```powershell
 3. Graph search finds related financial entities and document relationships.
+docker compose logs neo4j
+```
+
+Neo4j must become healthy before the backend is fully ready. The first startup can take longer while Neo4j initializes.
+
+**The chat returns a fallback answer:**
+
+Check that `.env` contains a valid supported provider and key, then recreate the backend:
+
+```powershell
 4. Duplicate candidates are removed.
+```
+
+Never paste API keys into source files, Compose defaults, shell history, or the README.
+
+**An upload is rejected:**
+
+Confirm that the file extension is one of `.csv`, `.xlsx`, `.pdf`, `.docx`, `.txt`, `.png`, `.jpg`, or `.jpeg`. For image files, OCR requires the backend image built from the repository Dockerfile.
 5. A reranker orders the remaining contexts.
 6. The requested `top_n` controls the final number of contexts.
 7. `enable_graph_expansion: false` disables graph retrieval for that request.
