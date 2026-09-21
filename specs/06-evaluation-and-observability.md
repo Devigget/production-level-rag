@@ -7,6 +7,8 @@ Build tracing telemetry and automated quality evaluation:
   - Retrieval Context Recall & Precision
   - Faithfulness (grounding against context)
   - Numerical Hallucination Rate
+    - Structured-record exact-match accuracy for metric and period queries
+    - Dashboard payload validity and source coverage
 - **CI/CD Eval Runner**: Provide an automated evaluation runner runnable via command line or GitHub Actions.
 
 ## 2. Target File Tree

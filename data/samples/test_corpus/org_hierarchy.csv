@@ -1,0 +1,15 @@
+Employee ID,Name,Title,Department,Reports To,Approval Role,Approval Limit (USD)
+E001,Amelia Grant,Chief Executive Officer,Executive,,Tier 4 co-approver (with CFO),Unlimited (dual approval with CFO)
+E002,Daniel Okafor,Chief Financial Officer,Finance,Amelia Grant,Tier 3 approver; Tier 4 co-approver,100000
+E003,Sofia Alvarez,Chief Operating Officer,Operations,Amelia Grant,Tier 2 approver (Department Head),25000
+E004,Priya Nair,VP Engineering,Engineering,Amelia Grant,Tier 2 approver (Department Head),25000
+E005,Marcus Lee,VP Sales,Sales,Amelia Grant,Tier 2 approver (Department Head),25000
+E006,Elena Petrova,Director of Marketing,Marketing,Amelia Grant,Tier 2 approver (Department Head),25000
+E007,Hannah Weiss,Finance Controller,Finance,Daniel Okafor,Tier 2 approver (Department Head),25000
+E008,Tomas Rivera,HR Director,Human Resources,Amelia Grant,Tier 2 approver (Department Head),25000
+E009,Kevin Zhou,Engineering Manager,Engineering,Priya Nair,Tier 1 approver (Department Manager),5000
+E010,Jordan Blake,Marketing Manager,Marketing,Elena Petrova,Tier 1 approver (Department Manager),5000
+E011,Aisha Khan,Sales Manager,Sales,Marcus Lee,Tier 1 approver (Department Manager),5000
+E012,Liam Foster,Operations Manager,Operations,Sofia Alvarez,Tier 1 approver (Department Manager),5000
+E013,Grace Tan,Finance Manager,Finance,Hannah Weiss,Tier 1 approver (Department Manager),5000
+E014,Nadia Hussain,HR Manager,Human Resources,Tomas Rivera,Tier 1 approver (Department Manager),5000

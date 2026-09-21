@@ -1,13 +1,14 @@
 # Spec 07: React Frontend & Financial Chat Interface
 
 ## 1. Goal & Scope
-Build the interactive user interface and streaming API:
+Build the interactive user interface and streaming API, with Power BI-ready dashboard outputs:
 - **FastAPI Serving Layer**: Expose endpoints for `/api/chat` (streaming SSE or JSON), `/api/upload` (multimodal ingestion for PDFs/Excel), and `/api/health`.
 - **React Frontend**: Modern chat dashboard supporting:
   - Markdown and tabular rendering for financial figures.
   - Interactive citation badges linking directly to source snippets.
   - Collapsible inspection drawer displaying retrieved graph entities, traversal hops, and reranker scores.
   - File upload widget for ad-hoc financial document ingestion.
+  - Dashboard payload state for KPI cards, period comparisons, trends, and drill-through source documents.
 
 ## 2. Target File Tree
 - `src/api/server.py`                # FastAPI application & route declarations

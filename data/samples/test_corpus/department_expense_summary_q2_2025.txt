@@ -1,0 +1,68 @@
+MERIDIAN TECH SOLUTIONS LTD
+DEPARTMENT EXPENSE SUMMARY - QUARTER ENDED 30 JUNE 2025 (Q2 2025)
+Prepared by: Finance Department (Finance Controller: Hannah Weiss)
+Distribution: Executive team and department heads. Status: Unaudited, internal use only.
+
+1. SCOPE
+This summary covers vendor-invoiced spend recorded in the vendor expense ledger for Q2 2025.
+Salaries & Benefits and Depreciation are not vendor spend and are excluded. Amounts are in USD.
+Total vendor-invoiced spend in Q2 2025: $785,000.
+
+2. SPEND BY DEPARTMENT
+- Engineering (cost center ENG-100, head: Priya Nair, VP Engineering): $295,000 (37.6% of vendor spend)
+- Operations (cost center OPS-400, head: Sofia Alvarez, Chief Operating Officer): $277,000 (35.3% of vendor spend)
+- Marketing (cost center MKT-200, head: Elena Petrova, Director of Marketing): $150,000 (19.1% of vendor spend)
+- Sales (cost center SAL-300, head: Marcus Lee, VP Sales): $35,000 (4.5% of vendor spend)
+- Finance (cost center FIN-500, head: Hannah Weiss, Finance Controller): $28,000 (3.6% of vendor spend)
+
+3. DEPARTMENT DETAIL
+ENGINEERING - $295,000
+  * Nimbus Cloud Services (Cloud Hosting): $164,500
+  * EdgeCDN Corp (Cloud Hosting): $70,500
+  * CloudSuite Software Inc (Software & Licenses): $36,000
+  * DataLens Analytics (Software & Licenses): $24,000
+  Approvers: Daniel Okafor ($189,800), Priya Nair ($105,200)
+
+OPERATIONS - $277,000
+  * TeleSupport Partners (Support Costs): $130,000
+  * Prime Offices Realty (Rent & Utilities): $60,000
+  * HelpDesk Pro Inc (Support Costs): $35,000
+  * Harlow & Finch LLP (Professional Fees): $34,000
+  * SecureNet Systems (Software & Licenses): $18,000
+  Approvers: Sofia Alvarez ($147,000), Daniel Okafor ($130,000)
+
+MARKETING - $150,000
+  * BrightWave Media (Marketing): $70,000
+  * Summit Events Ltd (Marketing): $50,000
+  * Pixel & Co Creative (Marketing): $30,000
+  Approvers: Elena Petrova ($94,800), Daniel Okafor ($55,200)
+
+SALES - $35,000
+  * SkyRoute Travel (Travel & Entertainment): $21,000
+  * Grandview Hotels (Travel & Entertainment): $14,000
+  Approvers: Marcus Lee ($26,100), Aisha Khan ($8,900)
+
+FINANCE - $28,000
+  * Pemberton Advisory (Professional Fees): $28,000
+  Approvers: Hannah Weiss ($28,000)
+
+4. INVOICES ABOVE $25,000 (TIER 3 - CFO APPROVAL REQUIRED)
+- NCS-2025-7029 | Nimbus Cloud Services | Engineering | $51,000 | invoice date 2025-04-21 | approved by Daniel Okafor on 2025-04-24
+- TSP-2025-5139 | TeleSupport Partners | Operations | $40,300 | invoice date 2025-04-22 | approved by Daniel Okafor on 2025-04-25
+- TSP-2025-5145 | TeleSupport Partners | Operations | $42,900 | invoice date 2025-05-12 | approved by Daniel Okafor on 2025-05-14
+- NCS-2025-7035 | Nimbus Cloud Services | Engineering | $54,300 | invoice date 2025-05-15 | approved by Daniel Okafor on 2025-05-19
+- SE-2025-0417 | Summit Events Ltd | Marketing | $30,000 | invoice date 2025-05-16 | approved by Daniel Okafor on 2025-05-20
+- BWM-2025-1078 | BrightWave Media | Marketing | $25,200 | invoice date 2025-06-23 | approved by Daniel Okafor on 2025-06-27
+- NCS-2025-7039 | Nimbus Cloud Services | Engineering | $59,200 | invoice date 2025-06-23 | approved by Daniel Okafor on 2025-06-25
+- TSP-2025-5149 | TeleSupport Partners | Operations | $46,800 | invoice date 2025-06-23 | approved by Daniel Okafor on 2025-06-25
+- ECD-2025-2247 | EdgeCDN Corp | Engineering | $25,300 | invoice date 2025-06-24 | approved by Daniel Okafor on 2025-06-26
+
+5. COMMENTS FROM FINANCE
+- Marketing vendor spend was $150,000, above the Q2 budget of $120,000. The main driver was the product launch event
+  invoiced by Summit Events Ltd (invoices SE-2025-0398 and SE-2025-0417, total $50,000).
+- Operations includes $34,000 from Harlow & Finch LLP, of which $25,000 relates to patent filing and licensing agreement
+  negotiation (invoice HF-2025-131), approved at Tier 2 by the Operations department head.
+- Finance spend consists of audit-readiness advisory work by Pemberton Advisory ($28,000 across three monthly invoices).
+- Engineering spend is dominated by cloud infrastructure (Nimbus Cloud Services and EdgeCDN Corp), which is reported in Cost of Goods Sold.
+
+End of report.

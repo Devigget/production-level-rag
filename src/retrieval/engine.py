@@ -7,22 +7,32 @@ from .reranker import CrossEncoderReranker
 
 
 class HybridRetrievalEngine:
-    def __init__(self, vector_search: Any, graph_search: Any, reranker: Any | None = None):
+    def __init__(self, vector_search: Any, graph_search: Any, reranker: Any | None = None,
+                 structured_search: Any | None = None):
         self.vector_search = vector_search
         self.graph_search = graph_search
+        self.structured_search = structured_search
         self.reranker = reranker or CrossEncoderReranker()
 
     def retrieve(self, request: RetrievalQuery | str) -> HybridSearchResult:
         query = request if isinstance(request, RetrievalQuery) else RetrievalQuery(query_text=request)
+        structured_contexts = (
+            self.structured_search.search(query.query_text, query.top_k_structured)
+            if self.structured_search is not None and query.top_k_structured > 0
+            else []
+        )
         vector_contexts = self.vector_search.search(
             query.query_text, query.top_k_vector, query.filters
         )
+        graph_limit = query.top_k_graph
+        if query.retrieval_mode == "auto" and self._needs_graph(query.query_text):
+            graph_limit = max(graph_limit, 10)
         graph_contexts = (
-            self.graph_search.search(query.query_text, query.top_k_graph)
-            if query.top_k_graph > 0
+            self.graph_search.search(query.query_text, graph_limit)
+            if graph_limit > 0
             else []
         )
-        candidates = self._deduplicate([*vector_contexts, *graph_contexts])
+        candidates = self._deduplicate([*structured_contexts, *vector_contexts, *graph_contexts])
         ranked = self.reranker.rerank(query.query_text, candidates, query.final_top_n)
         return HybridSearchResult(
             query=query.query_text,
@@ -31,6 +41,15 @@ class HybridRetrievalEngine:
         )
 
     search = retrieve
+
+    @staticmethod
+    def _needs_graph(query: str) -> bool:
+        relationship_terms = (
+            "who approved", "which vendor", "which department", "related to",
+            "across subsidiaries", "trace", "supporting chain", "ownership",
+        )
+        normalized = query.lower()
+        return any(term in normalized for term in relationship_terms)
 
     @staticmethod
     def _deduplicate(contexts: list[RetrievedContext]) -> list[RetrievedContext]:

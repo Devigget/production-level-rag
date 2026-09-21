@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from .tools import FinancialCalculator, financial_search, inspect_graph_entity
+from .tools import FinancialCalculator, build_dashboard_payload, financial_search, inspect_graph_entity
 
 try:
     from mcp.server.fastmcp import FastMCP
@@ -46,6 +46,12 @@ def create_server(
         if retrieval_engine is None:
             raise RuntimeError("retrieval_engine is not configured")
         return financial_search(retrieval_engine, query)
+
+    @app.tool()
+    def dashboard_payload(query: str) -> dict[str, Any]:
+        if retrieval_engine is None:
+            raise RuntimeError("retrieval_engine is not configured")
+        return build_dashboard_payload(retrieval_engine, query)
 
     @app.tool()
     def inspect_graph_entity(entity_name: str) -> dict[str, Any]:

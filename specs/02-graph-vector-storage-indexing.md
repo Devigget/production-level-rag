@@ -1,9 +1,11 @@
 # Spec 02: Hybrid Graph & Vector Storage Engine
 
 ## 1. Goal & Scope
-Build the dual-store persistence and indexing layer:
+Build the structured, vector, and optional graph indexing layer:
 - **Vector Store (Qdrant)**: Embed and store `FinancialChunk` text/tables for dense semantic retrieval.
-- **Graph Store (Neo4j)**: Extract financial entities, line items, and relationships from chunks, persisting them into a property graph for structured cross-hop queries.
+- **Structured Store**: Persist normalized metric-period-value records for deterministic KPI retrieval and Power BI datasets.
+- **Graph Store (Neo4j)**: Extract financial entities, line items, and relationships from chunks, persisting them into a property graph for optional cross-hop queries.
+- Graph indexing must not be treated as proof that every query needs GraphRAG; graph retrieval is selected by query intent.
 - Connects directly downstream from Spec 01's output (`FinancialChunk`).
 
 ## 2. Target File Tree

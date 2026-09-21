@@ -17,6 +17,7 @@ from src.indexing.config import IndexingSettings
 from src.retrieval.models import HybridSearchResult, RetrievalQuery
 from src.retrieval.engine import HybridRetrievalEngine
 from src.retrieval.graph_search import GraphSearcher
+from src.retrieval.structured_search import StructuredFinancialStore
 from src.retrieval.vector_search import VectorSearcher
 from src.api.schemas import ChatRequest, ChatResponse, HealthResponse, UploadResponse
 from src.orchestration.graph import build_workflow, create_llm_invoker
@@ -30,14 +31,26 @@ class _EmptyRetrievalEngine:
         return HybridSearchResult(query=query_text, ranked_contexts=[], total_candidates_evaluated=0)
 
 
+class _EmptySearch:
+    def search(self, *_args: Any, **_kwargs: Any) -> list[Any]:
+        return []
+
+
+structured_store = StructuredFinancialStore()
+
+
 def _build_default_workflow() -> Any:
     settings = IndexingSettings()
     if settings.qdrant_url == ":memory:":
-        return build_workflow(_EmptyRetrievalEngine(), create_llm_invoker())
+        retrieval_engine = HybridRetrievalEngine(
+            _EmptySearch(), _EmptySearch(), structured_search=structured_store
+        )
+        return build_workflow(retrieval_engine, create_llm_invoker())
     try:
         retrieval_engine = HybridRetrievalEngine(
             VectorSearcher(settings=settings),
             GraphSearcher(settings=settings),
+            structured_search=structured_store,
         )
     except Exception:
         retrieval_engine = _EmptyRetrievalEngine()
@@ -60,6 +73,23 @@ def _graph_nodes(contexts: list[dict[str, Any]]) -> list[str]:
             if value not in nodes:
                 nodes.append(str(value))
     return nodes
+
+
+def _dashboard_payload(contexts: list[dict[str, Any]]) -> dict[str, Any]:
+    rows = []
+    for context in contexts:
+        if context.get("source_type") != "structured_record":
+            continue
+        metadata = context.get("metadata", {})
+        rows.append({
+            "metric": metadata.get("metric"),
+            "period": metadata.get("period"),
+            "value": metadata.get("value"),
+            "source_file": metadata.get("source_file"),
+            "sheet_name": metadata.get("sheet_name"),
+            "citation_id": context.get("id"),
+        })
+    return {"rows": rows, "source_count": len(rows)}
 
 
 @app.get("/api/health", response_model=HealthResponse)
@@ -98,6 +128,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         graph_nodes_traversed=_graph_nodes(contexts),
         numerical_fidelity_passed=numerical_fidelity_passed,
         execution_time_ms=(time.perf_counter() - started) * 1000,
+        dashboard_payload=_dashboard_payload(contexts),
     )
 
 
@@ -132,6 +163,7 @@ def chat_stream(request: ChatRequest) -> StreamingResponse:
         "graph_nodes_traversed": _graph_nodes(contexts),
         "numerical_fidelity_passed": numerical_fidelity_passed,
         "execution_time_ms": (time.perf_counter() - started) * 1000,
+        "dashboard_payload": _dashboard_payload(contexts),
     }
 
     def events():
@@ -148,7 +180,11 @@ def chat_stream(request: ChatRequest) -> StreamingResponse:
 
 from src.indexing.indexer import FinancialIndexer
 
-indexer = FinancialIndexer() if IndexingSettings().qdrant_url != ":memory:" else None
+indexer = (
+    FinancialIndexer(structured_store=structured_store)
+    if IndexingSettings().qdrant_url != ":memory:"
+    else None
+)
 
 @app.post("/api/upload", response_model=UploadResponse)
 def upload(file: UploadFile = File(...)) -> UploadResponse:
@@ -167,6 +203,7 @@ def upload(file: UploadFile = File(...)) -> UploadResponse:
             sheet_name = chunk.metadata.get("sheet_name", "document")
             chunk.chunk_id = f"{filename}:{sheet_name}"
             chunk.source_file = filename
+        structured_store.upsert(result.chunks)
         if indexer is not None:
             indexer.index(result.chunks)
     except Exception as exc:

@@ -4,6 +4,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from src.retrieval.models import RetrievalQuery
+
 
 class GrowthRateInput(BaseModel):
     prior_value: float
@@ -74,6 +76,28 @@ def financial_search(retrieval_engine: Any, query: str) -> dict[str, Any]:
     if hasattr(result, "model_dump"):
         return result.model_dump()
     return dict(result)
+
+
+def build_dashboard_payload(retrieval_engine: Any, query: str) -> dict[str, Any]:
+    """Return validated structured records for a Power BI MCP connector."""
+    result = retrieval_engine.retrieve(
+        RetrievalQuery(query_text=query, top_k_graph=0, retrieval_mode="auto")
+    )
+    contexts = result.ranked_contexts if hasattr(result, "ranked_contexts") else []
+    rows = []
+    for context in contexts:
+        if context.source_type != "structured_record":
+            continue
+        metadata = context.metadata
+        rows.append({
+            "metric": metadata.get("metric"),
+            "period": metadata.get("period"),
+            "value": metadata.get("value"),
+            "source_file": metadata.get("source_file"),
+            "sheet_name": metadata.get("sheet_name"),
+            "citation_id": context.id,
+        })
+    return {"query": query, "rows": rows, "source_count": len(rows)}
 
 
 def inspect_graph_entity(graph_driver: Any, entity_name: str) -> dict[str, Any]:

@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import DashboardResult from './DashboardResult'
+import RichAnswer from './RichAnswer'
 
 export default function Chat({ onInspect }) {
   const [messages, setMessages] = useState([])
@@ -68,8 +70,11 @@ export default function Chat({ onInspect }) {
         {messages.map((message, index) => (
           <article className={`message ${message.role}`} key={`${message.role}-${index}`}>
             <span className="message-label">{message.role === 'user' ? 'You' : 'Ledger Lens'}</span>
-            <p>{message.answer}</p>
-            {message.role === 'assistant' && <button className="inspect-button" onClick={() => onInspect(message)}>Inspect evidence <span>↗</span></button>}
+            {message.role === 'assistant' ? <RichAnswer answer={message.answer} /> : <p>{message.answer}</p>}
+            {message.role === 'assistant' && <>
+              <DashboardResult payload={message.dashboard_payload} />
+              <button className="inspect-button" onClick={() => onInspect(message)}>Inspect evidence <span>↗</span></button>
+            </>}
           </article>
         ))}
         {loading && <div className="typing">Synthesizing sources<span>...</span></div>}

@@ -8,9 +8,11 @@ from pydantic import BaseModel, Field
 class RetrievalQuery(BaseModel):
     query_text: str
     top_k_vector: int = 10
+    top_k_structured: int = 10
     top_k_graph: int = 10
     final_top_n: int = 5
     filters: dict[str, Any] | None = None
+    retrieval_mode: str = "auto"
 
 
 class RetrievedContext(BaseModel):

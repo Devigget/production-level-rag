@@ -18,6 +18,7 @@ class ChatResponse(BaseModel):
     graph_nodes_traversed: list[str] = Field(default_factory=list)
     numerical_fidelity_passed: bool
     execution_time_ms: float
+    dashboard_payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class UploadResponse(BaseModel):

@@ -2,13 +2,15 @@
 
 ## 1. Goal & Scope
 Build a standardized Model Context Protocol (MCP) server:
-- Expose your financial hybrid retrieval and analytical calculations as callable tools.
+- Expose financial retrieval, analytical calculations, and validated dashboard payloads as callable tools.
 - Implement tools for:
-  1. `financial_search`: Executes hybrid vector + GraphRAG retrieval with reranking.
+    1. `financial_search`: Executes routed structured + vector retrieval, adding GraphRAG for relationship queries.
   2. `calculate_growth_rate`: Computes percentage change and CAGR between periods.
   3. `calculate_ebitda`: Computes EBITDA from revenue, operating expenses, depreciation, and amortization.
-  4. `inspect_graph_entity`: Direct lookup of a financial node and its immediate relations in Neo4j.
+    4. `inspect_graph_entity`: Direct lookup of a financial node and its immediate relations in Neo4j.
+    5. `build_dashboard_payload`: Returns validated metric, period, value, source, and citation fields suitable for a Power BI MCP connector.
 - Run via standard STDIO or SSE transport compatible with MCP hosts (e.g., Claude Desktop, Cursor).
+- The LLM must not write dashboard values directly. Power BI receives tool output containing validated structured records and source references.
 
 ## 2. Target File Tree
 - `src/mcp/tools.py`               # Standalone business logic and calculation engines

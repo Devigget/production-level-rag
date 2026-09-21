@@ -64,6 +64,46 @@ def test_engine_skips_graph_search_when_graph_expansion_is_disabled():
     assert result.ranked_contexts[0].id == "vector-only"
 
 
+def test_engine_routes_relationship_queries_to_graph():
+    vector = MagicMock()
+    vector.search.return_value = []
+    graph = MagicMock()
+    graph.search.return_value = [context("graph-only", 0.6, "graph_subgraph")]
+    reranker = MagicMock()
+    reranker.rerank.side_effect = lambda query, items, top_n: items[:top_n]
+
+    result = HybridRetrievalEngine(vector, graph, reranker).retrieve(
+        RetrievalQuery(query_text="Who approved the vendor expenses?", top_k_graph=0)
+    )
+
+    graph.search.assert_called_once_with("Who approved the vendor expenses?", 10)
+    assert result.ranked_contexts[0].source_type == "graph_subgraph"
+
+
+def test_structured_search_returns_exact_metric_and_period():
+    from src.ingestion.models import FinancialChunk, FinancialRecord
+    from src.retrieval.structured_search import StructuredFinancialStore
+
+    store = StructuredFinancialStore()
+    store.upsert(
+        [FinancialChunk(
+            chunk_id="pnl:sheet",
+            content="table",
+            chunk_type="table",
+            source_file="pnl.csv",
+            structured_records=[FinancialRecord(
+                metric="Revenue", period="Q2_2025", value=1450000,
+                raw_value="$1450000", source_file="pnl.csv",
+            )],
+        )]
+    )
+
+    result = store.search("What was revenue in Q2_2025?", limit=1)
+
+    assert result[0].metadata["value"] == 1450000
+    assert result[0].source_type == "structured_record"
+
+
 def test_empty_retrieval_returns_empty_result_without_reranking():
     vector = MagicMock()
     vector.search.return_value = []

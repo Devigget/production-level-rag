@@ -27,6 +27,9 @@ def test_csv_parsing_preserves_table_and_metadata(pipeline: FinancialIngestionPi
     assert "$1450000" in chunk.content
     assert chunk.metadata["sheet_name"] == "sample_pnl"
     assert chunk.metadata["row_count"] == 3
+    records = {(record.metric, record.period): record.value for record in chunk.structured_records}
+    assert records[("Revenue", "Q2_2025")] == 1450000
+    assert records[("Net Income", "Q1_2025")] == 350000
 
 
 def test_excel_parsing_preserves_each_sheet_and_metadata(

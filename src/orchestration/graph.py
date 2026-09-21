@@ -54,7 +54,8 @@ def build_workflow(retrieval_engine: Any, llm_invoker: Callable[[str], str]) -> 
             retrieval_query = RetrievalQuery(
                 query_text=state["sanitized_query"],
                 final_top_n=state.get("top_n", 5),
-                top_k_graph=10 if state.get("enable_graph_expansion", True) else 0,
+                top_k_graph=0,
+                retrieval_mode=("auto" if state.get("enable_graph_expansion", True) else "structured_vector"),
             )
             result = retrieval_engine.retrieve(retrieval_query)
         contexts = [_as_context_dict(item) for item in result.ranked_contexts]

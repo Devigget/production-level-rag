@@ -5,7 +5,7 @@ from typing import List, Union
 
 import pandas as pd
 
-from ..models import FinancialChunk
+from ..models import FinancialChunk, FinancialRecord
 
 
 PathLike = Union[str, Path]
@@ -28,6 +28,42 @@ def dataframe_to_markdown(dataframe: pd.DataFrame) -> str:
 
 def _escape_cell(value: object) -> str:
     return str(value).replace("|", "\\|").replace("\n", " ")
+
+
+def _numeric_value(value: object) -> float | None:
+    cleaned = str(value).strip().replace(",", "").replace("$", "").replace("%", "")
+    if not cleaned:
+        return None
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def _financial_records(dataframe: pd.DataFrame, source_file: str, sheet_name: str) -> list[FinancialRecord]:
+    if dataframe.empty or len(dataframe.columns) < 2:
+        return []
+    metric_column = dataframe.columns[0]
+    records: list[FinancialRecord] = []
+    for _, row in dataframe.iterrows():
+        metric = str(row.get(metric_column, "")).strip()
+        if not metric or metric.lower() == "nan":
+            continue
+        for period in dataframe.columns[1:]:
+            raw_value = str(row.get(period, "")).strip()
+            if raw_value.lower() == "nan" or not raw_value:
+                continue
+            records.append(
+                FinancialRecord(
+                    metric=metric,
+                    period=str(period),
+                    value=_numeric_value(raw_value),
+                    raw_value=raw_value,
+                    source_file=source_file,
+                    sheet_name=sheet_name,
+                )
+            )
+    return records
 
 
 def parse_table_file(file_path: PathLike) -> List[FinancialChunk]:
@@ -54,6 +90,7 @@ def parse_table_file(file_path: PathLike) -> List[FinancialChunk]:
                     "row_count": int(len(dataframe)),
                     "column_count": int(len(dataframe.columns)),
                 },
+                structured_records=_financial_records(dataframe, path.name, str(sheet_name)),
             )
         )
     return chunks

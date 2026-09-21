@@ -46,12 +46,13 @@ The core end-to-end flow is implemented and tested:
 ```text
 Upload document
     -> Parse and normalize
-    -> Create FinancialChunk objects
+    -> Create FinancialChunk objects and normalized financial records
 # Optional alternative provider settings:
 # LLM_PROVIDER=nvidia
 # NVIDIA_API_KEY=your-key
 # NVIDIA_MODEL=google/gemma-4-31b-it
-    -> Generate a guarded answer
+    -> Route to structured retrieval, vector RAG, or optional GraphRAG
+    -> Generate a guarded answer and Power BI-ready payload
     -> Verify numerical grounding
     -> Stream answer and expose citations
 ```

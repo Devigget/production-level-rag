@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.mcp.tools import FinancialCalculator, financial_search, inspect_graph_entity
+from src.mcp.tools import FinancialCalculator, build_dashboard_payload, financial_search, inspect_graph_entity
 
 
 def test_growth_rate_calculation():
@@ -39,6 +39,21 @@ def test_financial_search_bridge_serializes_retrieval_result():
 
     assert financial_search(retrieval, "revenue") == {"query": "revenue"}
     retrieval.retrieve.assert_called_once_with("revenue")
+
+
+def test_dashboard_payload_contains_only_structured_records():
+    retrieval = MagicMock()
+    structured = MagicMock(source_type="structured_record", id="pnl:Revenue:Q2_2025")
+    structured.metadata = {
+        "metric": "Revenue", "period": "Q2_2025", "value": 1450000,
+        "source_file": "pnl.csv", "sheet_name": "sample_pnl",
+    }
+    retrieval.retrieve.return_value.ranked_contexts = [structured]
+
+    payload = build_dashboard_payload(retrieval, "revenue Q2_2025")
+
+    assert payload["rows"][0]["value"] == 1450000
+    assert payload["rows"][0]["citation_id"] == "pnl:Revenue:Q2_2025"
 
 
 def test_graph_inspection_uses_parameterized_entity_lookup():
