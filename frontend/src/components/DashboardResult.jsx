@@ -48,7 +48,20 @@ export default function DashboardResult({ payload }) {
       </div>
 
       <div className="trend-panel">
-        <div className="trend-header"><span>Period view</span><span>{rows.length} record{rows.length === 1 ? '' : 's'}</span></div>
+        <div className="trend-header"><span>Financial records</span><span>{rows.length} record{rows.length === 1 ? '' : 's'}</span></div>
+        <div className="dashboard-table" role="table" aria-label="Financial records">
+          <div className="dashboard-table-row dashboard-table-header" role="row">
+            <span>Period</span><span>Value</span><span>Source</span>
+          </div>
+          {rows.map((row) => (
+            <div className="dashboard-table-row" role="row" key={`table-${row.citation_id || `${row.metric}-${row.period}`}`}>
+              <span>{shortPeriod(row.period)}</span>
+              <strong>{formatValue(row.value)}</strong>
+              <span title={row.source_file}>{row.source_file || 'Indexed record'}</span>
+            </div>
+          ))}
+        </div>
+        <div className="trend-header trend-header-spaced"><span>Relative value view</span><span>Scaled to largest record</span></div>
         <div className="trend-list">
           {rows.map((row) => (
             <div className="trend-row" key={row.citation_id || `${row.metric}-${row.period}`}>

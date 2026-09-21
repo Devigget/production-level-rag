@@ -1,0 +1,87 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Latest value",
+      "id": 1,
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 0},
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "financial-rag-api"},
+      "targets": [{
+        "refId": "A",
+        "url_options": {"method": "GET"},
+        "type": "json",
+        "source": "url",
+        "url": "/api/dashboard/data?query=revenue",
+        "format": "table",
+        "parser": "backend",
+        "root_selector": "rows",
+        "columns": [
+          {"selector": "period", "text": "Period", "type": "string"},
+          {"selector": "value", "text": "Value", "type": "number"}
+        ]
+      }],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD", "decimals": 0}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "Value", "values": false}, "orientation": "auto", "textMode": "auto", "colorMode": "value"}
+    },
+    {
+      "type": "table",
+      "title": "Financial records",
+      "id": 2,
+      "gridPos": {"h": 10, "w": 16, "x": 8, "y": 0},
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "financial-rag-api"},
+      "targets": [{
+        "refId": "A",
+        "url_options": {"method": "GET"},
+        "type": "json",
+        "source": "url",
+        "url": "/api/dashboard/data?query=revenue",
+        "format": "table",
+        "parser": "backend",
+        "root_selector": "rows",
+        "columns": [
+          {"selector": "metric", "text": "Metric", "type": "string"},
+          {"selector": "period", "text": "Period", "type": "string"},
+          {"selector": "value", "text": "Value", "type": "number"},
+          {"selector": "source_file", "text": "Source", "type": "string"},
+          {"selector": "citation_id", "text": "Citation", "type": "string"}
+        ]
+      }],
+      "fieldConfig": {"defaults": {"custom": {"align": "auto", "cellOptions": {"type": "auto"}}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}}, "overrides": []},
+      "options": {"cellHeight": "sm", "footer": {"show": true}, "showHeader": true, "sort": {"col": 2, "desc": true}}
+    },
+    {
+      "type": "barchart",
+      "title": "Value by period",
+      "id": 3,
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 10},
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "financial-rag-api"},
+      "targets": [{
+        "refId": "A",
+        "url_options": {"method": "GET"},
+        "type": "json",
+        "source": "url",
+        "url": "/api/dashboard/data?query=revenue",
+        "format": "table",
+        "parser": "backend",
+        "root_selector": "rows",
+        "columns": [
+          {"selector": "period", "text": "Period", "type": "string"},
+          {"selector": "value", "text": "Value", "type": "number"}
+        ]
+      }],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD", "decimals": 0}, "overrides": []},
+      "options": {"orientation": "auto", "xTickLabelRotation": 0, "xTickLabelSpacing": 100, "showValue": "auto", "stacking": "none", "tooltip": {"mode": "single"}, "legend": {"displayMode": "list", "placement": "bottom"}}
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["financial-rag", "grounded-data"],
+  "templating": {"list": []},
+  "time": {"from": "now-30d", "to": "now"},
+  "timepicker": {},
+  "title": "Financial RAG Showcase",
+  "uid": "financial-rag-showcase",
+  "version": 1
+}

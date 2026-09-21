@@ -1,6 +1,7 @@
 """OCR parser for image-based financial documents and receipts."""
 
 from pathlib import Path
+import logging
 from typing import List, Union
 
 from PIL import Image
@@ -10,6 +11,7 @@ from ..models import FinancialChunk
 
 
 PathLike = Union[str, Path]
+logger = logging.getLogger(__name__)
 
 
 def parse_image(file_path: PathLike) -> List[FinancialChunk]:
@@ -25,6 +27,7 @@ def parse_image(file_path: PathLike) -> List[FinancialChunk]:
         try:
             content = pytesseract.image_to_string(image).strip()
         except (OSError, pytesseract.TesseractNotFoundError):
+            logger.warning("ocr_fallback filename=%s reason=ocr_unavailable", path.name)
             content = ""
 
     if content:

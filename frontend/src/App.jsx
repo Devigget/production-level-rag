@@ -15,7 +15,10 @@ export default function App() {
           <p className="eyebrow">Financial intelligence workspace</p>
           <h1>Ledger Lens</h1>
         </div>
-        <div className="status-dot"><span /> API ready</div>
+        <div className="topbar-actions">
+          <a className="dashboard-link" href="http://localhost:3001/d/financial-rag-showcase/financial-rag-showcase" target="_blank" rel="noreferrer">Open Grafana <span>↗</span></a>
+          <div className="status-dot"><span /> API ready</div>
+        </div>
       </header>
       <section className="workspace">
         <aside className="sidebar">

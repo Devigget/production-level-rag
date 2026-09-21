@@ -82,7 +82,12 @@ def test_mcp_server_registers_expected_tool_signatures():
         tools = asyncio.run(tools)
     names = {tool.name for tool in tools}
 
-    assert {"calculate_growth_rate", "calculate_ebitda", "financial_search", "inspect_graph_entity"} <= names
+    assert {
+        "calculate_growth_rate",
+        "calculate_ebitda",
+        "financial_search",
+        "inspect_graph_entity",
+    } <= names
     growth_tool = next(tool for tool in tools if tool.name == "calculate_growth_rate")
     schema = getattr(growth_tool, "parameters", None) or growth_tool.input_schema
     assert set(schema["properties"]) == {"prior_value", "current_value"}

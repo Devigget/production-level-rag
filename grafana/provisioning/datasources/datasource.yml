@@ -1,0 +1,10 @@
+apiVersion: 1
+
+datasources:
+  - name: Financial RAG API
+    uid: financial-rag-api
+    type: yesoreyeram-infinity-datasource
+    access: proxy
+    url: http://backend:8000
+    isDefault: true
+    editable: false

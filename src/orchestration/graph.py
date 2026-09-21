@@ -1,6 +1,7 @@
 """LangGraph workflow for guarded hybrid financial question answering."""
 
 import os
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -11,6 +12,9 @@ from .guardrails.output_guard import verify_numerical_grounding
 from .prompts import build_user_prompt
 from src.retrieval.models import RetrievalQuery
 from .state import AgentWorkflowState, Citation, FinancialAnswer
+
+
+logger = logging.getLogger(__name__)
 
 
 def _as_context_dict(context: Any) -> dict[str, Any]:
@@ -44,6 +48,8 @@ def build_workflow(retrieval_engine: Any, llm_invoker: Callable[[str], str]) -> 
 
     def input_node(state: AgentWorkflowState) -> AgentWorkflowState:
         result = check_input(state["raw_query"])
+        if not result.is_safe:
+            logger.warning("guardrail_blocked violations=%s", ",".join(result.violations))
         return {**state, "sanitized_query": result.sanitized_text, "is_safe": result.is_safe,
                 "errors": [*state.get("errors", []), *result.violations]}
 
@@ -77,6 +83,7 @@ def build_workflow(retrieval_engine: Any, llm_invoker: Callable[[str], str]) -> 
         errors = [*state.get("errors", [])]
         if not check.passed:
             errors.append("unverified_numbers")
+            logger.warning("grounding_failed unverified_count=%d", len(check.unverified_numbers))
         return {**state, "final_output": answer, "errors": errors}
 
     try:

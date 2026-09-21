@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import tempfile
 import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 
 from src.ingestion.pipeline import FinancialIngestionPipeline
@@ -21,6 +22,11 @@ from src.retrieval.structured_search import StructuredFinancialStore
 from src.retrieval.vector_search import VectorSearcher
 from src.api.schemas import ChatRequest, ChatResponse, HealthResponse, UploadResponse
 from src.orchestration.graph import build_workflow, create_llm_invoker
+from src.logging_config import configure_logging
+
+
+configure_logging()
+logger = logging.getLogger(__name__)
 
 
 class _EmptyRetrievalEngine:
@@ -42,6 +48,7 @@ structured_store = StructuredFinancialStore()
 def _build_default_workflow() -> Any:
     settings = IndexingSettings()
     if settings.qdrant_url == ":memory:":
+        logger.info("retrieval_backend mode=in_memory")
         retrieval_engine = HybridRetrievalEngine(
             _EmptySearch(), _EmptySearch(), structured_search=structured_store
         )
@@ -53,6 +60,7 @@ def _build_default_workflow() -> Any:
             structured_search=structured_store,
         )
     except Exception:
+        logger.exception("retrieval_backend_initialization_failed")
         retrieval_engine = _EmptyRetrievalEngine()
     return build_workflow(retrieval_engine, create_llm_invoker())
 
@@ -94,7 +102,15 @@ def _dashboard_payload(contexts: list[dict[str, Any]]) -> dict[str, Any]:
 
 @app.get("/api/health", response_model=HealthResponse)
 def health() -> HealthResponse:
+    logger.debug("health_check status=ok")
     return HealthResponse(status="ok", service="financial-rag")
+
+
+@app.get("/api/dashboard/data")
+def dashboard_data(query: str = Query(default="revenue", min_length=1)) -> dict[str, Any]:
+    """Return grounded structured records for Grafana and other dashboard clients."""
+    contexts = [context.model_dump() for context in structured_store.search(query, limit=50)]
+    return {"query": query, **_dashboard_payload(contexts)}
 
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -120,6 +136,12 @@ def chat(request: ChatRequest) -> ChatResponse:
         citations = [citation.model_dump() for citation in final_output.citations]
         numerical_fidelity_passed = final_output.numerical_fidelity_passed
         query = final_output.query
+
+    logger.info(
+        "chat_completed query_length=%d citations=%d grounded=%s duration_ms=%.1f",
+        len(request.query), len(citations), numerical_fidelity_passed,
+        (time.perf_counter() - started) * 1000,
+    )
 
     return ChatResponse(
         query=query,
@@ -157,6 +179,12 @@ def chat_stream(request: ChatRequest) -> StreamingResponse:
         numerical_fidelity_passed = final_output.numerical_fidelity_passed
         query = final_output.query
 
+    logger.info(
+        "chat_stream_ready query_length=%d citations=%d grounded=%s duration_ms=%.1f",
+        len(request.query), len(citations), numerical_fidelity_passed,
+        (time.perf_counter() - started) * 1000,
+    )
+
     payload = {
         "query": query,
         "citations": citations,
@@ -191,13 +219,15 @@ def upload(file: UploadFile = File(...)) -> UploadResponse:
     filename = Path(file.filename or "upload").name
     suffix = Path(filename).suffix.lower()
     if suffix not in {".csv", ".docx", ".jpeg", ".jpg", ".pdf", ".png", ".txt", ".xlsx"}:
+        logger.warning("upload_rejected filename=%s reason=unsupported_extension", filename)
         raise HTTPException(status_code=415, detail="Unsupported file type")
 
     temporary_path: str | None = None
     try:
         descriptor, temporary_path = tempfile.mkstemp(suffix=suffix)
+        file_bytes = file.file.read()
         with os.fdopen(descriptor, "wb") as temporary_file:
-            temporary_file.write(file.file.read())
+            temporary_file.write(file_bytes)
         result = app.state.ingestion_pipeline.ingest(temporary_path)
         for chunk in result.chunks:
             sheet_name = chunk.metadata.get("sheet_name", "document")
@@ -205,8 +235,17 @@ def upload(file: UploadFile = File(...)) -> UploadResponse:
             chunk.source_file = filename
         structured_store.upsert(result.chunks)
         if indexer is not None:
-            indexer.index(result.chunks)
+            indexing_result = indexer.index(result.chunks)
+        else:
+            indexing_result = {}
+        logger.info(
+            "upload_completed filename=%s extension=%s size_bytes=%d chunks=%d chunk_types=%s indexed=%s",
+            filename, suffix, len(file_bytes), result.total_chunks,
+            ",".join(sorted({chunk.chunk_type for chunk in result.chunks})),
+            bool(indexing_result),
+        )
     except Exception as exc:
+        logger.exception("upload_failed filename=%s extension=%s", filename, suffix)
         raise HTTPException(status_code=400, detail=f"Unable to ingest file: {exc}") from exc
     finally:
         if temporary_path is not None:

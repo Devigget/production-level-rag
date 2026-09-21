@@ -85,7 +85,6 @@ h2 {
   letter-spacing: -.06em;
 }
 .status-dot {
-  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -93,6 +92,14 @@ h2 {
   font: 500 11px 'DM Mono', monospace;
   text-transform: uppercase;
 }
+.topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 18px; }
+.dashboard-link {
+  color: var(--primary-strong);
+  font: 600 10px 'DM Mono', monospace;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+.dashboard-link:hover { color: var(--secondary); }
 .status-dot span {
   width: 9px;
   height: 9px;
@@ -383,6 +390,36 @@ h2 {
 .kpi-card strong.positive { color: var(--primary-strong); }
 .kpi-card strong.negative { color: #c2410c; }
 .trend-panel { margin-top: 17px; }
+.dashboard-table {
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
+  background: rgba(248, 251, 249, 0.82);
+}
+.dashboard-table-row {
+  display: grid;
+  grid-template-columns: minmax(72px, .75fr) minmax(95px, 1fr) minmax(90px, 1.2fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 35px;
+  padding: 7px 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  color: var(--text-soft);
+  font-size: 10px;
+}
+.dashboard-table-row:first-child { border-top: 0; }
+.dashboard-table-row > span, .dashboard-table-row > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-table-row strong { color: var(--text); font-size: 11px; text-align: right; }
+.dashboard-table-header {
+  min-height: 29px;
+  color: var(--muted);
+  background: rgba(226, 241, 234, 0.7);
+  font: 500 9px 'DM Mono', monospace;
+  text-transform: uppercase;
+}
+.dashboard-table-header span:nth-child(2) { text-align: right; }
+.trend-header-spaced { margin-top: 16px; }
 .trend-header {
   color: var(--muted);
   font: 500 9px 'DM Mono', monospace;
@@ -539,6 +576,7 @@ h2 {
   .message { max-width: 90%; }
   .dashboard-result { padding: 14px; }
   .kpi-grid { grid-template-columns: 1fr; }
+  .dashboard-table-row { grid-template-columns: minmax(58px, .75fr) minmax(82px, 1fr) minmax(65px, 1fr); gap: 6px; padding-inline: 7px; }
   .trend-row { grid-template-columns: 67px minmax(35px, 1fr) max-content; gap: 6px; }
   .trend-value { font-size: 10px; }
   .invoice-list { overflow-x: auto; }

@@ -1,9 +1,14 @@
 """Hybrid retrieval coordinator."""
 
+import logging
+import time
 from typing import Any
 
 from .models import HybridSearchResult, RetrievedContext, RetrievalQuery
 from .reranker import CrossEncoderReranker
+
+
+logger = logging.getLogger(__name__)
 
 
 class HybridRetrievalEngine:
@@ -15,6 +20,7 @@ class HybridRetrievalEngine:
         self.reranker = reranker or CrossEncoderReranker()
 
     def retrieve(self, request: RetrievalQuery | str) -> HybridSearchResult:
+        started = time.perf_counter()
         query = request if isinstance(request, RetrievalQuery) else RetrievalQuery(query_text=request)
         structured_contexts = (
             self.structured_search.search(query.query_text, query.top_k_structured)
@@ -34,6 +40,12 @@ class HybridRetrievalEngine:
         )
         candidates = self._deduplicate([*structured_contexts, *vector_contexts, *graph_contexts])
         ranked = self.reranker.rerank(query.query_text, candidates, query.final_top_n)
+        logger.info(
+            "retrieval_completed structured=%d vector=%d graph=%d candidates=%d selected=%d mode=%s duration_ms=%.1f",
+            len(structured_contexts), len(vector_contexts), len(graph_contexts),
+            len(candidates), len(ranked), query.retrieval_mode,
+            (time.perf_counter() - started) * 1000,
+        )
         return HybridSearchResult(
             query=query.query_text,
             ranked_contexts=ranked,
