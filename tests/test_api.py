@@ -15,6 +15,15 @@ def test_health_route():
     assert response.json()["status"] == "ok"
 
 
+def test_liveness_and_metrics_routes():
+    assert client.get("/healthz/live").status_code == 200
+
+    response = client.get("/metrics")
+
+    assert response.status_code == 200
+    assert "http_requests_total" in response.text
+
+
 def test_upload_route_parses_csv():
     response = client.post(
         "/api/upload",

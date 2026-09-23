@@ -2,7 +2,7 @@
 
 ## 1. Goal & Scope
 Package the entire multi-service system for reproducible deployment and set up automated quality gates:
-- **Container Orchestration**: Multi-container Docker Compose setup managing FastAPI backend, React frontend (or static build served via Nginx), Qdrant vector database, and Neo4j graph database.
+- **Container Orchestration**: Multi-container Docker Compose setup managing FastAPI backend, React frontend (or static build served via Nginx), Qdrant, Neo4j, OpenTelemetry Collector, Prometheus, Tempo, and Grafana.
 - **Production Dockerfiles**: Multi-stage builds for both backend (Python slim) and frontend (Node build -> Nginx static serving).
 - **Automated CI/CD Workflow**: GitHub Actions pipeline executing code linting, static type verification, full pytest suite runs, and container build checks on every pull request to `main`.
 
@@ -14,6 +14,7 @@ Package the entire multi-service system for reproducible deployment and set up a
 - `.dockerignore`                  # Prevent virtualenvs, logs, and node_modules in build context
 - `.github/workflows/ci.yml`       # Automated GitHub Actions test, lint, and build pipeline
 - `scripts/healthcheck.sh`         # Shell verification script to validate running containers
+- `observability/`                 # Collector, Prometheus, Tempo, and alert configuration
 
 ## 3. Configuration Specifications
 
@@ -21,7 +22,7 @@ Package the entire multi-service system for reproducible deployment and set up a
 - **backend**:
   - Build context: root directory (`Dockerfile`).
   - Environment: `QDRANT_URL=http://qdrant:6333`, `NEO4J_URI=bolt://neo4j:7687`, `NEO4J_USER=neo4j`, `NEO4J_PASSWORD=production_password`.
-  - Depends on: `neo4j` (healthy), `qdrant` (healthy).
+  - Depends on: `neo4j` (healthy), `qdrant` (started), and exports OTLP traces to `otel-collector`.
   - Port: `8000:8000`.
 - **frontend**:
   - Build context: `./frontend` (`frontend/Dockerfile`).
@@ -36,6 +37,14 @@ Package the entire multi-service system for reproducible deployment and set up a
   - Environment: `NEO4J_AUTH=neo4j/production_password`, `NEO4J_PLUGINS=["apoc"]`.
   - Ports: `7474:7474` (HTTP browser), `7687:7687` (Bolt binary).
   - Volumes: `neo4j_data:/data`.
+- **otel-collector**:
+  - Receives OTLP gRPC/HTTP on ports 4317/4318, exports traces to Tempo and metrics on port 8889 for Prometheus.
+- **prometheus**:
+  - Scrapes Collector metrics and evaluates SLO alerts from `observability/alerts.yml`.
+- **tempo**:
+  - Stores traces locally and serves the Grafana Tempo datasource.
+- **grafana**:
+  - Provisions API, Prometheus, and Tempo datasources plus the financial and reliability dashboards.
 
 ### GitHub Actions Pipeline (`.github/workflows/ci.yml`)
 - Trigger: `push` and `pull_request` against `main` or `master`.
@@ -66,6 +75,12 @@ Package the entire multi-service system for reproducible deployment and set up a
 3. **`docker-compose.yml`**:
    - Define named volumes for `neo4j_data` and `qdrant_storage`.
    - Include proper health checks for `neo4j` (using `cypher-shell`) and `qdrant` (using `/readyz` endpoint) to enforce startup order.
+  - Configure backend liveness at `/healthz/live` and readiness at `/healthz/ready`.
+
+## 6. Reliability and Triage
+- `/metrics` is scraped by the Collector/Prometheus path and contains `http_requests_total` and `http_request_duration_seconds`.
+- Page alerts are limited to user-facing symptoms: 5xx ratio above 2% or p95 latency above 300 ms.
+- Alert annotations carry a runbook URL and a Tempo-compatible trace filter. Infrastructure saturation alerts should be routed to ticketing/chat rather than paging.
 
 ## 5. Constraints
 - The backend image must stay lightweight (under 600MB uncompressed if using CPU-only torch/transformers wheels).

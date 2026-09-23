@@ -144,12 +144,47 @@ class NvidiaLLMInvoker:
                     {"role": "system", "content": "You are a helpful financial RAG assistant. Answer only from the provided context."},
                     {"role": "user", "content": prompt},
                 ],
-                "max_tokens": 1024,
+                "max_tokens": 3000,
                 "temperature": 0.0,
                 "top_p": 1.0,
                 "stream": False,
             },
         )
+        if response.is_error:
+            logger.error("nvidia_api_error status=%d body=%s", response.status_code, response.text)
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"] or ""
+
+
+class GroqLLMInvoker:
+    """Callable Groq adapter using its OpenAI-compatible chat endpoint."""
+
+    def __init__(self, api_key: str, model: str):
+        import httpx
+
+        self.model = model
+        self.client = httpx.Client(
+            base_url="https://api.groq.com/openai/v1",
+            headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json"},
+            timeout=120.0,
+        )
+
+    def __call__(self, prompt: str) -> str:
+        response = self.client.post(
+            "/chat/completions",
+            json={
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": "You are a helpful financial RAG assistant. Answer only from the provided context."},
+                    {"role": "user", "content": prompt},
+                ],
+                "max_tokens": 3000,
+                "temperature": 0.0,
+                "stream": False,
+            },
+        )
+        if response.is_error:
+            logger.error("groq_api_error status=%d body=%s", response.status_code, response.text)
         response.raise_for_status()
         return response.json()["choices"][0]["message"]["content"] or ""
 
@@ -159,9 +194,17 @@ def create_llm_invoker() -> Callable[[str], str]:
 
     load_dotenv()
     provider = os.getenv("LLM_PROVIDER", "gemini").lower()
+    if provider == "groq":
+        api_key = os.getenv("GROQ_API_KEY")
+        if api_key:
+            logger.info("llm_provider_selected provider=groq model=%s", os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"))
+            return GroqLLMInvoker(api_key, os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"))
+        logger.warning("llm_provider_missing_api_key provider=groq")
+        return lambda _: "I could not find supporting financial context for that question."
     if provider == "nvidia":
         api_key = os.getenv("NVIDIA_API_KEY")
         if api_key:
+            logger.info("llm_provider_selected provider=nvidia model=%s", os.getenv("NVIDIA_MODEL", "google/gemma-4-31b-it"))
             return NvidiaLLMInvoker(api_key, os.getenv("NVIDIA_MODEL", "google/gemma-4-31b-it"))
         return lambda _: "I could not find supporting financial context for that question."
 
@@ -169,6 +212,7 @@ def create_llm_invoker() -> Callable[[str], str]:
     if not api_key:
         return lambda _: "I could not find supporting financial context for that question."
     try:
+        logger.info("llm_provider_selected provider=gemini model=%s", os.getenv("GEMINI_MODEL", "gemini-2.5-flash"))
         return GeminiLLMInvoker(api_key, os.getenv("GEMINI_MODEL", "gemini-2.5-flash"))
     except ImportError:
         return lambda _: "I could not find supporting financial context for that question."

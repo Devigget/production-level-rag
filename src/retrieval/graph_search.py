@@ -20,7 +20,8 @@ RETURN relation.chunk_id AS id,
        coalesce(relation.content, relation.value, connected.name) AS content,
        1.0 / hops AS score,
        {entity: entity.name, connected_entity: connected.name, hops: hops,
-    source_file: relation.source_file} AS metadata
+        graph_nodes_traversed: [entity.name, connected.name],
+        source_file: relation.source_file} AS metadata
 ORDER BY score DESC
 LIMIT $limit
 """

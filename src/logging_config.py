@@ -1,15 +1,5 @@
-"""Application logging configuration."""
+"""Backward-compatible logging configuration entrypoint."""
 
-import logging
-import os
+from src.observability import configure_logging
 
-
-def configure_logging() -> None:
-    """Configure consistent console logging for local and container runs."""
-    level_name = os.getenv("LOG_LEVEL", "INFO").upper()
-    level = getattr(logging, level_name, logging.INFO)
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
-        force=True,
-    )
+__all__ = ["configure_logging"]

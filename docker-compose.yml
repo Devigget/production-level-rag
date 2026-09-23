@@ -12,10 +12,23 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
       LLM_PROVIDER: ${LLM_PROVIDER:-groq}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
-      GROQ_MODEL: ${GROQ_MODEL:-llama-3.1-8b-instant}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
       NVIDIA_MODEL: ${NVIDIA_MODEL:-google/gemma-4-31b-it}
       RERANKER_ENABLED: ${RERANKER_ENABLED:-true}
+      RERANKER_MODEL_NAME: ${RERANKER_MODEL_NAME:-/models/bge-reranker-base}
+      RERANKER_MAX_LENGTH: ${RERANKER_MAX_LENGTH:-256}
+      RERANKER_DEVICE: ${RERANKER_DEVICE:-auto}
+      RERANKER_USE_FP16: ${RERANKER_USE_FP16:-true}
+      RERANKER_LOCAL_FILES_ONLY: ${RERANKER_LOCAL_FILES_ONLY:-true}
+      HF_TOKEN: ${HF_TOKEN:-}
+      OTEL_ENABLED: ${OTEL_ENABLED:-true}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-financial-rag-api}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
+    volumes:
+      - hf_cache:/home/appuser/.cache/huggingface
+      - "${RERANKER_HOST_MODEL_PATH:-C:/Users/VigneshPandurangGaun/OneDrive - McLaren Strategic Solutions US Inc/Documents/models/Reranker models}:/models/bge-reranker-base:ro"
+      - ./src:/app/src:ro
     depends_on:
       neo4j:
         condition: service_healthy
@@ -24,7 +37,7 @@ services:
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/healthz/live', timeout=3)"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -58,6 +71,40 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
 
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.108.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./observability/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
+      tempo:
+        condition: service_started
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo_storage:/var/tempo
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus"]
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_storage:/prometheus
+    depends_on:
+      otel-collector:
+        condition: service_started
+    ports:
+      - "9090:9090"
+
   qdrant:
     image: qdrant/qdrant:latest
     ports:
@@ -87,3 +134,6 @@ volumes:
   neo4j_data:
   qdrant_storage:
   grafana_storage:
+  prometheus_storage:
+  tempo_storage:
+  hf_cache:

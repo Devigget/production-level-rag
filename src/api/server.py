@@ -7,11 +7,16 @@ import logging
 import os
 import tempfile
 import time
+import asyncio
 from pathlib import Path
 from typing import Any
 
+from src.observability import configure_logging, configure_telemetry
+
+configure_telemetry()
+
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
 from src.ingestion.pipeline import FinancialIngestionPipeline
 from src.indexing.config import IndexingSettings
@@ -22,9 +27,6 @@ from src.retrieval.structured_search import StructuredFinancialStore
 from src.retrieval.vector_search import VectorSearcher
 from src.api.schemas import ChatRequest, ChatResponse, HealthResponse, UploadResponse
 from src.orchestration.graph import build_workflow, create_llm_invoker
-from src.logging_config import configure_logging
-
-
 configure_logging()
 logger = logging.getLogger(__name__)
 
@@ -70,6 +72,21 @@ app.state.workflow = _build_default_workflow()
 app.state.ingestion_pipeline = FinancialIngestionPipeline()
 
 
+@app.middleware("http")
+async def metrics_middleware(request: Any, call_next: Any) -> Response:
+    from src.observability import record_request
+
+    started = time.perf_counter()
+    response = await call_next(request)
+    record_request(request, response, started)
+    return response
+
+
+from src.observability import dependency_status, instrument_fastapi, metrics_payload
+
+instrument_fastapi(app)
+
+
 def _graph_nodes(contexts: list[dict[str, Any]]) -> list[str]:
     nodes: list[str] = []
     for context in contexts:
@@ -77,10 +94,19 @@ def _graph_nodes(contexts: list[dict[str, Any]]) -> list[str]:
         values = metadata.get("graph_nodes_traversed", metadata.get("graph_nodes", []))
         if isinstance(values, str):
             values = [values]
+        elif not values:
+            entity = metadata.get("entity")
+            connected = metadata.get("connected_entity")
+            if entity and connected:
+                values = [str(entity), str(connected)]
+            elif entity:
+                values = [str(entity)]
         for value in values:
-            if value not in nodes:
-                nodes.append(str(value))
+            val_str = str(value).strip()
+            if val_str and val_str not in nodes:
+                nodes.append(val_str)
     return nodes
+
 
 
 def _dashboard_payload(contexts: list[dict[str, Any]]) -> dict[str, Any]:
@@ -104,6 +130,28 @@ def _dashboard_payload(contexts: list[dict[str, Any]]) -> dict[str, Any]:
 def health() -> HealthResponse:
     logger.debug("health_check status=ok")
     return HealthResponse(status="ok", service="financial-rag")
+
+
+@app.get("/healthz/live")
+def liveness() -> dict[str, str]:
+    return {"status": "ok", "service": "financial-rag"}
+
+
+@app.get("/healthz/ready")
+def readiness() -> Response:
+    dependencies = dependency_status()
+    ready = all(value == "ok" for value in dependencies.values())
+    return Response(
+        content=json.dumps({"status": "ready" if ready else "unhealthy", "dependencies": dependencies}),
+        status_code=200 if ready else 503,
+        media_type="application/json",
+    )
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    payload, content_type = metrics_payload()
+    return Response(content=payload, media_type=content_type.split(";", 1)[0], headers={"Content-Type": content_type})
 
 
 @app.get("/api/dashboard/data")
@@ -157,44 +205,50 @@ def chat(request: ChatRequest) -> ChatResponse:
 @app.post("/api/chat/stream")
 def chat_stream(request: ChatRequest) -> StreamingResponse:
     """Stream a guarded answer as SSE events while preserving final citations."""
-    started = time.perf_counter()
-    result = app.state.workflow.invoke(
-        {
-            "raw_query": request.query,
-            "top_n": request.top_n,
-            "enable_graph_expansion": request.enable_graph_expansion,
+    async def events():
+        started = time.perf_counter()
+        yield "event: status\ndata: {\"status\": \"processing\"}\n\n"
+        workflow_task = asyncio.create_task(asyncio.to_thread(
+            app.state.workflow.invoke,
+            {
+                "raw_query": request.query,
+                "top_n": request.top_n,
+                "enable_graph_expansion": request.enable_graph_expansion,
+            },
+        ))
+        while not workflow_task.done():
+            await asyncio.sleep(15)
+            if not workflow_task.done():
+                yield ": keepalive\n\n"
+
+        result = await workflow_task
+        final_output = result.get("final_output")
+        contexts = result.get("retrieved_contexts", [])
+        if final_output is None:
+            answer = "This request could not be processed safely."
+            citations: list[dict[str, Any]] = []
+            numerical_fidelity_passed = False
+            query = result.get("sanitized_query") or request.query
+        else:
+            answer = final_output.answer
+            citations = [citation.model_dump() for citation in final_output.citations]
+            numerical_fidelity_passed = final_output.numerical_fidelity_passed
+            query = final_output.query
+
+        logger.info(
+            "chat_stream_ready query_length=%d citations=%d grounded=%s duration_ms=%.1f",
+            len(request.query), len(citations), numerical_fidelity_passed,
+            (time.perf_counter() - started) * 1000,
+        )
+
+        payload = {
+            "query": query,
+            "citations": citations,
+            "graph_nodes_traversed": _graph_nodes(contexts),
+            "numerical_fidelity_passed": numerical_fidelity_passed,
+            "execution_time_ms": (time.perf_counter() - started) * 1000,
+            "dashboard_payload": _dashboard_payload(contexts),
         }
-    )
-    final_output = result.get("final_output")
-    contexts = result.get("retrieved_contexts", [])
-
-    if final_output is None:
-        answer = "This request could not be processed safely."
-        citations: list[dict[str, Any]] = []
-        numerical_fidelity_passed = False
-        query = result.get("sanitized_query") or request.query
-    else:
-        answer = final_output.answer
-        citations = [citation.model_dump() for citation in final_output.citations]
-        numerical_fidelity_passed = final_output.numerical_fidelity_passed
-        query = final_output.query
-
-    logger.info(
-        "chat_stream_ready query_length=%d citations=%d grounded=%s duration_ms=%.1f",
-        len(request.query), len(citations), numerical_fidelity_passed,
-        (time.perf_counter() - started) * 1000,
-    )
-
-    payload = {
-        "query": query,
-        "citations": citations,
-        "graph_nodes_traversed": _graph_nodes(contexts),
-        "numerical_fidelity_passed": numerical_fidelity_passed,
-        "execution_time_ms": (time.perf_counter() - started) * 1000,
-        "dashboard_payload": _dashboard_payload(contexts),
-    }
-
-    def events():
         for offset in range(0, len(answer), 24):
             yield f"event: token\ndata: {json.dumps({'text': answer[offset:offset + 24]})}\n\n"
         yield f"event: complete\ndata: {json.dumps({'answer': answer, **payload})}\n\n"

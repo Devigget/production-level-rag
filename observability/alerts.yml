@@ -1,0 +1,21 @@
+groups:
+  - name: financial-rag-slo
+    rules:
+      - alert: FinancialRagHighErrorRate
+        expr: sum(rate(http_requests_total{code=~"5.."}[5m])) / clamp_min(sum(rate(http_requests_total[5m])), 1) > 0.02
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: Financial RAG API error rate is above 2 percent
+          runbook: https://github.com/example/financial-rag/runbooks/high-error-rate
+          trace_filter: '{resource.service.name="financial-rag-api"} status=error'
+      - alert: FinancialRagLatencySLOBurn
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m]))) > 0.3
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: Financial RAG API p95 latency exceeds 300ms
+          runbook: https://github.com/example/financial-rag/runbooks/high-latency
+          trace_filter: '{resource.service.name="financial-rag-api"} duration>300ms'

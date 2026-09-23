@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from src.orchestration.graph import build_workflow
+from src.orchestration.graph import GroqLLMInvoker, build_workflow, create_llm_invoker
 from src.orchestration.guardrails.input_guard import check_input
 from src.orchestration.guardrails.output_guard import verify_numerical_grounding
 from src.retrieval.models import HybridSearchResult, RetrievedContext
@@ -46,3 +46,14 @@ def test_workflow_retrieves_generates_and_validates_mock_response():
     assert result["final_output"].numerical_fidelity_passed
     assert result["final_output"].citations[0].source_file == "sample.csv"
     retrieval.retrieve.assert_called_once_with("What was revenue?")
+
+
+def test_groq_provider_selects_groq_model(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "groq")
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setenv("GROQ_MODEL", "llama-3.1-8b-instant")
+
+    invoker = create_llm_invoker()
+
+    assert isinstance(invoker, GroqLLMInvoker)
+    assert invoker.model == "llama-3.1-8b-instant"

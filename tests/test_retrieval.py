@@ -129,6 +129,69 @@ def test_cross_encoder_reranker_sorts_scores_descending():
     assert [item.rerank_score for item in ranked] == [0.9, 0.4, 0.1]
 
 
+def test_cross_encoder_reranker_defaults(monkeypatch):
+    monkeypatch.delenv("RERANKER_MODEL_NAME", raising=False)
+    monkeypatch.delenv("RERANKER_MODEL_PATH", raising=False)
+    monkeypatch.delenv("RERANKER_MODEL", raising=False)
+    monkeypatch.delenv("RERANKER_MAX_LENGTH", raising=False)
+    monkeypatch.delenv("RERANKER_LOCAL_FILES_ONLY", raising=False)
+    monkeypatch.delenv("RERANKER_HOST_MODEL_PATH", raising=False)
+    reranker = CrossEncoderReranker()
+    assert reranker.max_length == 256
+    assert reranker.model_name == "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    assert reranker.device in {"cpu", "cuda", "mps"}
+    assert reranker.local_files_only is False
+
+
+def test_cross_encoder_reranker_container_model_path(monkeypatch):
+    monkeypatch.setenv("RERANKER_MODEL_NAME", "/models/bge-reranker-base")
+    reranker = CrossEncoderReranker()
+    assert reranker.model_name == "/models/bge-reranker-base"
+
+
+def test_cross_encoder_reranker_env_overrides(monkeypatch):
+    monkeypatch.setenv("RERANKER_MODEL_NAME", "BAAI/bge-reranker-base")
+    monkeypatch.setenv("RERANKER_MAX_LENGTH", "128")
+    monkeypatch.setenv("RERANKER_DEVICE", "cpu")
+    monkeypatch.setenv("RERANKER_USE_FP16", "false")
+    monkeypatch.setenv("RERANKER_LOCAL_FILES_ONLY", "true")
+
+    reranker = CrossEncoderReranker()
+    assert reranker.model_name == "BAAI/bge-reranker-base"
+    assert reranker.max_length == 128
+    assert reranker.device == "cpu"
+    assert reranker.use_fp16 is False
+    assert reranker.local_files_only is True
+
+
+def test_cross_encoder_reranker_model_instantiation_kwargs(monkeypatch):
+    monkeypatch.setenv("RERANKER_ENABLED", "true")
+    mock_cross_encoder = MagicMock()
+
+    monkeypatch.setattr(
+        "sentence_transformers.CrossEncoder",
+        mock_cross_encoder,
+        raising=False,
+    )
+
+    reranker = CrossEncoderReranker(
+        model_name="custom/model",
+        max_length=128,
+        device="cpu",
+        use_fp16=False,
+        local_files_only=True,
+    )
+    model = reranker._get_model()
+
+    assert model == mock_cross_encoder.return_value
+    mock_cross_encoder.assert_called_once_with(
+        "custom/model",
+        max_length=128,
+        device="cpu",
+        local_files_only=True,
+    )
+
+
 def test_graph_search_maps_cypher_records_to_contexts():
     driver = MagicMock()
     session = driver.session.return_value.__enter__.return_value

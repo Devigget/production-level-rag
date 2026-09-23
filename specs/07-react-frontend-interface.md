@@ -2,7 +2,7 @@
 
 ## 1. Goal & Scope
 Build the interactive user interface and streaming API, with Power BI-ready dashboard outputs:
-- **FastAPI Serving Layer**: Expose endpoints for `/api/chat` (streaming SSE or JSON), `/api/upload` (multimodal ingestion for PDFs/Excel), and `/api/health`.
+- **FastAPI Serving Layer**: Expose endpoints for `/api/chat` (streaming SSE or JSON), `/api/upload` (multimodal ingestion for PDFs/Excel), `/api/health`, `/healthz/live`, `/healthz/ready`, and `/metrics`.
 - **React Frontend**: Modern chat dashboard supporting:
   - Markdown and tabular rendering for financial figures.
   - Interactive citation badges linking directly to source snippets.
