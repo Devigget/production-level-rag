@@ -23,9 +23,11 @@ class FinancialAnswer(BaseModel):
     citations: list[Citation] = Field(default_factory=list)
     numerical_fidelity_passed: bool
     unverified_numbers: list[str] = Field(default_factory=list)
+    route_used: Optional[str] = None
+    store_id: Optional[str] = None
 
 
-class AgentWorkflowState(TypedDict):
+class AgentWorkflowState(TypedDict, total=False):
     raw_query: str
     top_n: int
     enable_graph_expansion: bool
@@ -35,3 +37,8 @@ class AgentWorkflowState(TypedDict):
     raw_llm_response: str
     final_output: Optional[FinancialAnswer]
     errors: list[str]
+    store_id: str
+    store_name: str
+    chat_history: str
+    retrieval_route: str
+    router_reasoning: str

@@ -139,3 +139,51 @@ def test_pdf_table_extraction_is_markdown_and_page_aware(
     assert chunk.chunk_type == "table"
     assert "| Revenue | $1200000 |" in chunk.content
     assert chunk.metadata["page_number"] == 1
+
+
+def test_pdf_extracts_both_tables_and_narrative_text(
+    pipeline: FinancialIngestionPipeline, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    pdf_path = tmp_path / "financial_report.pdf"
+
+    class FakeTable:
+        bbox = (10, 50, 100, 150)
+
+    class FakeFilteredPage:
+        def extract_text(self):
+            return "Prepared by the Owner/Manager\nExecutive Summary"
+
+    class FakePage:
+        def extract_tables(self):
+            return [[["Metric", "Value"], ["Revenue", "$84,000"]]]
+
+        def find_tables(self):
+            return [FakeTable()]
+
+        def filter(self, predicate):
+            return FakeFilteredPage()
+
+        def extract_text(self):
+            return "Prepared by the Owner/Manager\nMetric Value\nRevenue $84,000"
+
+    class FakePDF:
+        pages = [FakePage()]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+    monkeypatch.setattr(pdf_parser.pdfplumber, "open", lambda path: FakePDF())
+
+    result = pipeline.ingest(pdf_path)
+
+    assert result.total_chunks == 2
+    chunk_types = [c.chunk_type for c in result.chunks]
+    assert "table" in chunk_types
+    assert "text" in chunk_types
+
+    text_chunk = next(c for c in result.chunks if c.chunk_type == "text")
+    assert "Prepared by the Owner/Manager" in text_chunk.content
+    assert text_chunk.metadata["page_number"] == 1

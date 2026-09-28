@@ -34,24 +34,69 @@ class VectorSearcher:
         return list(encoded[0])
 
     def search(
-        self, query: str, limit: int = 10, filters: dict[str, Any] | None = None
+        self,
+        query: str,
+        limit: int = 10,
+        filters: dict[str, Any] | None = None,
+        store_id: str | None = None,
     ) -> list[RetrievedContext]:
         if limit <= 0:
             return []
+        
+        target_store_id = store_id or (filters.get("store_id") if isinstance(filters, dict) else None)
         kwargs: dict[str, Any] = {
             "collection_name": self.settings.qdrant_collection,
             "query": self._embed(query),
-            "limit": limit,
+            "limit": limit * 3 if target_store_id else limit,
             "with_payload": True,
         }
-        if filters:
-            kwargs["query_filter"] = filters
+        if filters or target_store_id:
+            if hasattr(filters, "must") or hasattr(filters, "should"):
+                kwargs["query_filter"] = filters
+            else:
+                try:
+                    from qdrant_client.http import models as qmodels
+                    must_conditions = []
+                    if isinstance(filters, dict):
+                        for k, v in filters.items():
+                            if k != "store_id":
+                                must_conditions.append(
+                                    qmodels.FieldCondition(key=k, match=qmodels.MatchValue(value=v))
+                                )
+                    if target_store_id:
+                        must_conditions.append(
+                            qmodels.Filter(
+                                should=[
+                                    qmodels.FieldCondition(key="store_id", match=qmodels.MatchValue(value=target_store_id)),
+                                    qmodels.FieldCondition(key="chunk.store_id", match=qmodels.MatchValue(value=target_store_id)),
+                                ]
+                            )
+                        )
+                    if must_conditions:
+                        kwargs["query_filter"] = qmodels.Filter(must=must_conditions)
+                except Exception:
+                    pass
+
         if hasattr(self.client, "query_points"):
-            response = self.client.query_points(**kwargs)
-            points = response.points
+            try:
+                response = self.client.query_points(**kwargs)
+                points = response.points
+            except Exception:
+                # Fallback without query_filter if server rejects filter schema
+                kwargs.pop("query_filter", None)
+                response = self.client.query_points(**kwargs)
+                points = response.points
         else:
             kwargs["query_vector"] = kwargs.pop("query")
             points = self.client.search(**kwargs)
+
+        if target_store_id:
+            points = [
+                p for p in points
+                if getattr(p, "payload", {}).get("store_id") == target_store_id
+                or getattr(p, "payload", {}).get("chunk", {}).get("store_id") == target_store_id
+            ][:limit]
+
         return [self._to_context(point) for point in points]
 
     @staticmethod

@@ -13,6 +13,8 @@ class FinancialRecord(BaseModel):
     source_file: str
     sheet_name: str | None = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    store_id: str = "default"
+    doc_id: str = ""
 
 
 class FinancialChunk(BaseModel):
@@ -22,6 +24,9 @@ class FinancialChunk(BaseModel):
     source_file: str
     metadata: Dict[str, Any] = Field(default_factory=dict)
     structured_records: List[FinancialRecord] = Field(default_factory=list)
+    store_id: str = "default"
+    doc_id: str = ""
+    source_type: str = "unstructured"
 
 
 class IngestionResult(BaseModel):

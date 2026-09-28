@@ -80,7 +80,11 @@ class VectorStore:
             models.PointStruct(
                 id=self._point_id(chunk.chunk_id),
                 vector=vector,
-                payload={"chunk": chunk.model_dump()},
+                payload={
+                    "chunk": chunk.model_dump(),
+                    "store_id": getattr(chunk, "store_id", "default") or "default",
+                    "doc_id": getattr(chunk, "doc_id", "") or "",
+                },
             )
             for chunk, vector in zip(chunks, vectors)
         ]
@@ -92,19 +96,57 @@ class VectorStore:
 
     upsert_chunks = upsert
 
-    def search(self, query: str, limit: int = 5) -> list[Any]:
+    def search(self, query: str, limit: int = 5, store_id: str | None = None) -> list[Any]:
         vector = self._embed([query])[0]
-        if hasattr(self.client, "query_points"):
-            response = self.client.query_points(
-                collection_name=self.settings.qdrant_collection,
-                query=vector,
-                limit=limit,
-                with_payload=True,
+        query_filter = None
+        if store_id:
+            query_filter = models.Filter(
+                should=[
+                    models.FieldCondition(key="store_id", match=models.MatchValue(value=store_id)),
+                    models.FieldCondition(key="chunk.store_id", match=models.MatchValue(value=store_id)),
+                ]
             )
-            return list(response.points)
-        return self.client.search(
-            collection_name=self.settings.qdrant_collection,
-            query_vector=vector,
-            limit=limit,
-            with_payload=True,
-        )
+
+        kwargs: dict[str, Any] = {
+            "collection_name": self.settings.qdrant_collection,
+            "limit": limit * 2 if store_id else limit,
+            "with_payload": True,
+        }
+        if query_filter:
+            kwargs["query_filter"] = query_filter
+
+        if hasattr(self.client, "query_points"):
+            try:
+                response = self.client.query_points(
+                    query=vector,
+                    **kwargs,
+                )
+                points = list(response.points)
+            except Exception:
+                kwargs.pop("query_filter", None)
+                response = self.client.query_points(
+                    query=vector,
+                    **kwargs,
+                )
+                points = list(response.points)
+        else:
+            try:
+                points = list(self.client.search(
+                    query_vector=vector,
+                    **kwargs,
+                ))
+            except Exception:
+                kwargs.pop("query_filter", None)
+                points = list(self.client.search(
+                    query_vector=vector,
+                    **kwargs,
+                ))
+
+        if store_id:
+            points = [
+                p for p in points
+                if getattr(p, "payload", {}).get("store_id") == store_id
+                or getattr(p, "payload", {}).get("chunk", {}).get("store_id") == store_id
+            ][:limit]
+
+        return points

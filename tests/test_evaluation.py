@@ -43,6 +43,72 @@ def test_tracer_falls_back_without_credentials():
     tracer.flush()
 
 
+def test_tracer_workflow_run_graceful_without_client():
+    tracer = Tracer(EvaluationSettings(langfuse_public_key=None, langfuse_secret_key=None))
+    # Should not raise exception
+    tracer.trace_workflow_run(
+        query="What was revenue?",
+        result={"sanitized_query": "What was revenue?", "is_safe": True, "raw_llm_response": "$1.2M", "retrieved_contexts": []},
+        store_id="default",
+    )
+
+
+def test_tracer_workflow_run_with_mock_client():
+    from unittest.mock import MagicMock
+    mock_client = MagicMock()
+    mock_trace = MagicMock()
+    mock_client.trace.return_value = mock_trace
+
+    tracer = Tracer(client=mock_client)
+    tracer.trace_workflow_run(
+        query="What was revenue?",
+        result={
+            "sanitized_query": "What was revenue?",
+            "is_safe": True,
+            "raw_llm_response": "$1.2M in Q1 2025",
+            "retrieved_contexts": [{"id": "chunk-1", "content": "Revenue: $1.2M in Q1 2025"}],
+        },
+        store_id="store-123",
+        route_used="HYBRID",
+        execution_time_ms=120.5,
+    )
+
+    mock_client.trace.assert_called_once()
+    assert mock_trace.span.call_count >= 2  # input_guard, hybrid_retrieval, output_guard
+    mock_trace.generation.assert_called_once()
+    mock_trace.score.assert_called_once()
+
+
+def test_tracer_workflow_run_with_v4_observation_client():
+    from unittest.mock import MagicMock
+    mock_client = MagicMock(spec=["start_as_current_observation", "flush", "create_score", "get_current_trace_id"])
+    mock_obs = MagicMock()
+    mock_obs.trace_id = "test-trace-id-123"
+    mock_client.start_as_current_observation.return_value.__enter__.return_value = mock_obs
+    mock_client.get_current_trace_id.return_value = "test-trace-id-123"
+
+    tracer = Tracer(client=mock_client)
+    trace_id = tracer.trace_workflow_run(
+        query="What was revenue?",
+        result={
+            "sanitized_query": "What was revenue?",
+            "is_safe": True,
+            "raw_llm_response": "$1.2M in Q1 2025",
+            "retrieved_contexts": [{"id": "chunk-1", "content": "Revenue: $1.2M in Q1 2025"}],
+        },
+        store_id="store-123",
+        route_used="HYBRID",
+        execution_time_ms=120.5,
+    )
+
+    assert trace_id == "test-trace-id-123"
+    assert mock_client.start_as_current_observation.call_count >= 4
+    mock_client.create_score.assert_called_once()
+    assert mock_client.flush.call_count >= 1
+
+
+
+
 def test_eval_runner_loads_dataset_and_runs_batch():
     dataset_path = Path("data/eval/golden_dataset.json")
     cases = load_dataset(dataset_path)

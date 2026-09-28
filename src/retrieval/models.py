@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 class RetrievalQuery(BaseModel):
     query_text: str
+    store_id: str = "default"
     top_k_vector: int = 10
     top_k_structured: int = 10
     top_k_graph: int = 10

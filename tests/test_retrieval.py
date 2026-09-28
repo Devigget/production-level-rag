@@ -1,3 +1,4 @@
+import sys
 from unittest.mock import MagicMock
 
 from src.retrieval.engine import HybridRetrievalEngine
@@ -168,11 +169,9 @@ def test_cross_encoder_reranker_model_instantiation_kwargs(monkeypatch):
     monkeypatch.setenv("RERANKER_ENABLED", "true")
     mock_cross_encoder = MagicMock()
 
-    monkeypatch.setattr(
-        "sentence_transformers.CrossEncoder",
-        mock_cross_encoder,
-        raising=False,
-    )
+    mock_st = MagicMock()
+    mock_st.CrossEncoder = mock_cross_encoder
+    monkeypatch.setitem(sys.modules, "sentence_transformers", mock_st)
 
     reranker = CrossEncoderReranker(
         model_name="custom/model",
@@ -209,3 +208,35 @@ def test_graph_search_maps_cypher_records_to_contexts():
     assert result[0].source_type == "graph_subgraph"
     assert result[0].id == "pnl:sample_pnl"
     session.run.assert_called_once()
+
+
+def test_hybrid_engine_performs_multi_hop_entity_expansion():
+    vector = MagicMock()
+    narrative_ctx = context("report.pdf:page-1", 0.9, "pdf")
+    narrative_ctx.content = "Marketing spend rose to $3,000 in Q4 to support a holiday drinks promotion."
+    table_ctx = context("pnl.xlsx:Marketing:row-17", 0.95, "table")
+    table_ctx.content = "Store: Demo | Marketing | Q3: 1600 | Q4: 3000"
+
+    def mock_vector_search(query_text, limit, filters=None, store_id=None):
+        if "holiday promotion" in query_text:
+            return [narrative_ctx]
+        if "Marketing" in query_text:
+            return [table_ctx]
+        return []
+
+    vector.search.side_effect = mock_vector_search
+    graph = MagicMock()
+    graph.search.return_value = []
+    reranker = MagicMock()
+    reranker.rerank.side_effect = lambda q, items, top_n: items[:top_n]
+
+    engine = HybridRetrievalEngine(vector, graph, reranker)
+    query = RetrievalQuery(
+        query_text="What line item in the income statement grew because of the holiday promotion mentioned in the quarterly report, and by how much?",
+        final_top_n=5,
+    )
+    result = engine.retrieve(query)
+
+    retrieved_ids = [c.id for c in result.ranked_contexts]
+    assert "report.pdf:page-1" in retrieved_ids
+    assert "pnl.xlsx:Marketing:row-17" in retrieved_ids

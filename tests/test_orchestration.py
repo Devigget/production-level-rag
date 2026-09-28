@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from src.orchestration.graph import GroqLLMInvoker, build_workflow, create_llm_invoker
+from src.orchestration.graph import GroqLLMInvoker, LocalHuggingFaceLLMInvoker, build_workflow, create_llm_invoker
 from src.orchestration.guardrails.input_guard import check_input
 from src.orchestration.guardrails.output_guard import verify_numerical_grounding
 from src.retrieval.models import HybridSearchResult, RetrievedContext
@@ -57,3 +57,13 @@ def test_groq_provider_selects_groq_model(monkeypatch):
 
     assert isinstance(invoker, GroqLLMInvoker)
     assert invoker.model == "llama-3.1-8b-instant"
+
+
+def test_local_provider_selects_local_model(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "local")
+    monkeypatch.setattr(LocalHuggingFaceLLMInvoker, "__init__", lambda self, *args, **kwargs: None)
+
+    invoker = create_llm_invoker()
+
+    assert isinstance(invoker, LocalHuggingFaceLLMInvoker)
+

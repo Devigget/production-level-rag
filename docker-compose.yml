@@ -15,6 +15,10 @@ services:
       GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
       NVIDIA_MODEL: ${NVIDIA_MODEL:-google/gemma-4-31b-it}
+      LOCAL_LLM_HOST_PATH: ${LOCAL_LLM_HOST_PATH:-C:/Users/VigneshPandurangGaun/OneDrive - McLaren Strategic Solutions US Inc/Documents/models/llm/Qwen2.5-1.5B-Instruct}
+      LOCAL_LLM_MODEL_PATH: ${LOCAL_LLM_MODEL_PATH:-/models/llm/Qwen2.5-1.5B-Instruct}
+      LOCAL_LLM_DEVICE: ${LOCAL_LLM_DEVICE:-cpu}
+      LOCAL_LLM_MAX_NEW_TOKENS: ${LOCAL_LLM_MAX_NEW_TOKENS:-1024}
       RERANKER_ENABLED: ${RERANKER_ENABLED:-true}
       RERANKER_MODEL_NAME: ${RERANKER_MODEL_NAME:-/models/bge-reranker-base}
       RERANKER_MAX_LENGTH: ${RERANKER_MAX_LENGTH:-256}
@@ -25,10 +29,17 @@ services:
       OTEL_ENABLED: ${OTEL_ENABLED:-true}
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-financial-rag-api}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-${LANGFUSE_BASE_URL:-https://us.cloud.langfuse.com}}
+      LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-${LANGFUSE_HOST:-https://us.cloud.langfuse.com}}
+      LANGFUSE_TRACING_ENVIRONMENT: ${LANGFUSE_TRACING_ENVIRONMENT:-production}
     volumes:
       - hf_cache:/home/appuser/.cache/huggingface
       - "${RERANKER_HOST_MODEL_PATH:-C:/Users/VigneshPandurangGaun/OneDrive - McLaren Strategic Solutions US Inc/Documents/models/Reranker models}:/models/bge-reranker-base:ro"
+      - "${LOCAL_LLM_HOST_PATH:-C:/Users/VigneshPandurangGaun/OneDrive - McLaren Strategic Solutions US Inc/Documents/models/llm/Qwen2.5-1.5B-Instruct}:/models/llm/Qwen2.5-1.5B-Instruct:ro"
       - ./src:/app/src:ro
+      - ./data:/app/data
     depends_on:
       neo4j:
         condition: service_healthy
@@ -118,6 +129,9 @@ services:
     environment:
       NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-production_password}
       NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1024m
+      NEO4J_server_memory_pagecache_size: 512m
     ports:
       - "7474:7474"
       - "7687:7687"
