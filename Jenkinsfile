@@ -4,7 +4,7 @@ pipeline {
     environment {
         // --- 1. REGISTRY & IMAGE METADATA ---
         REGISTRY = 'docker.io'
-        REGISTRY_USER = 'your-dockerhub-username'  // <-- CHANGE TO YOUR DOCKERHUB USERNAME
+        REGISTRY_USER = 'vgmclaren'  // <-- CHANGE TO YOUR DOCKERHUB USERNAME
         BACKEND_IMAGE = "${REGISTRY_USER}/rag-backend"
         FRONTEND_IMAGE = "${REGISTRY_USER}/rag-frontend"
         IMAGE_TAG = "${env.BUILD_NUMBER}-${env.GIT_COMMIT.take(7)}"
