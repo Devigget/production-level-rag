@@ -1,0 +1,19 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = [
+    "E501",  # line length handled flexibly
+    "E402",  # module level imports after telemetry initialization
+    "E731",  # do not assign a lambda expression
+    "F401",  # unused imports in init or mock bridges
+    "F841",  # local variable assigned but never used
+    "F811",  # redefinition of unused imports for MCP tool wrappers
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-v"

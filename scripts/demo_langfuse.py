@@ -23,7 +23,7 @@ def main():
     settings = EvaluationSettings()
     tracer = get_tracer(settings)
 
-    print(f"\n1. Langfuse Status:")
+    print("\n1. Langfuse Status:")
     print(f"   - Tracing Enabled: {tracer.enabled}")
     print(f"   - Langfuse Host:   {settings.langfuse_host}")
     print(f"   - Public Key Set:  {bool(settings.langfuse_public_key)}")
@@ -83,7 +83,7 @@ def main():
         print("   [SUCCESS] Live trace sent!")
         if trace_id:
             print(f"   - Trace ID:    {trace_id}")
-            print(f"   - Session ID:  store-default")
+            print("   - Session ID:  store-default")
             print(f"   - Environment: {settings.langfuse_environment}")
         print(f"   - Dashboard:   {settings.langfuse_host}")
 

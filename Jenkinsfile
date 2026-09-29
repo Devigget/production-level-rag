@@ -4,17 +4,16 @@ pipeline {
     environment {
         // --- 1. REGISTRY & IMAGE METADATA ---
         REGISTRY = 'docker.io'
-        REGISTRY_USER = 'vgmclaren'  // <-- CHANGE TO YOUR DOCKERHUB USERNAME
+        REGISTRY_USER = 'vgmclaren'  // <-- Change to your Docker Hub username
         BACKEND_IMAGE = "${REGISTRY_USER}/rag-backend"
         FRONTEND_IMAGE = "${REGISTRY_USER}/rag-frontend"
-        IMAGE_TAG = "${env.BUILD_NUMBER}-${env.GIT_COMMIT.take(7)}"
+        COMPOSE_PROJECT_NAME = 'productionlevelrag'
 
         // --- 2. CREDENTIAL IDENTIFIERS ---
         REGISTRY_CREDS_ID = 'docker-registry-credentials'
         PROD_ENV_SECRET_ID = 'rag-production-env'
 
         // --- 3. MODEL HOST PATHS (Keeps heavy models OUT of Docker images) ---
-        // Matches the host paths where your local models reside
         LOCAL_LLM_HOST_PATH = "C:/Users/VigneshPandurangGaun/OneDrive - McLaren Strategic Solutions US Inc/Documents/models/llm/Qwen2.5-1.5B-Instruct"
         RERANKER_HOST_MODEL_PATH = "C:/Users/VigneshPandurangGaun/OneDrive - McLaren Strategic Solutions US Inc/Documents/models/Reranker models"
     }
@@ -33,6 +32,7 @@ pipeline {
             environment {
                 // Mocked environment variables so tests don't attempt live DB connections
                 TESTING = "true"
+                PYTHONPATH = "."
                 NEO4J_URI = "bolt://mock:7687"
                 NEO4J_USER = "neo4j"
                 NEO4J_PASSWORD = "mock_password"
@@ -62,7 +62,7 @@ pipeline {
                     steps {
                         dir('frontend') {
                             sh '''
-                                npm ci
+                                npm ci || npm install
                                 npm run build
                             '''
                         }
@@ -77,19 +77,24 @@ pipeline {
         stage('Build Images') {
             steps {
                 script {
+                    def commitSha = env.GIT_COMMIT ? env.GIT_COMMIT.take(7) : "latest"
+                    def imageTag = "${env.BUILD_NUMBER}-${commitSha}"
+
                     echo "Building lightweight backend image..."
                     sh """
                         docker build \
-                            -t ${BACKEND_IMAGE}:${IMAGE_TAG} \
+                            -t ${BACKEND_IMAGE}:${imageTag} \
                             -t ${BACKEND_IMAGE}:latest \
+                            -t productionlevelrag-backend:latest \
                             -f Dockerfile .
                     """
 
                     echo "Building frontend image..."
                     sh """
                         docker build \
-                            -t ${FRONTEND_IMAGE}:${IMAGE_TAG} \
+                            -t ${FRONTEND_IMAGE}:${imageTag} \
                             -t ${FRONTEND_IMAGE}:latest \
+                            -t productionlevelrag-frontend:latest \
                             -f frontend/Dockerfile ./frontend
                     """
                 }
@@ -102,6 +107,9 @@ pipeline {
         stage('Push to Registry') {
             steps {
                 script {
+                    def commitSha = env.GIT_COMMIT ? env.GIT_COMMIT.take(7) : "latest"
+                    def imageTag = "${env.BUILD_NUMBER}-${commitSha}"
+
                     withCredentials([usernamePassword(
                         credentialsId: REGISTRY_CREDS_ID, 
                         usernameVariable: 'DOCKER_USER', 
@@ -110,10 +118,10 @@ pipeline {
                         sh """
                             echo "$DOCKER_PASS" | docker login ${REGISTRY} -u "$DOCKER_USER" --password-stdin
                             
-                            docker push ${BACKEND_IMAGE}:${IMAGE_TAG}
+                            docker push ${BACKEND_IMAGE}:${imageTag}
                             docker push ${BACKEND_IMAGE}:latest
                             
-                            docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}
+                            docker push ${FRONTEND_IMAGE}:${imageTag}
                             docker push ${FRONTEND_IMAGE}:latest
                         """
                     }
@@ -133,13 +141,14 @@ pipeline {
                             # 1. Temporarily place production secrets for compose
                             cp \$SECRET_ENV_FILE .env
                             
-                            # 2. Export model paths
+                            # 2. Export model paths & project name
                             export LOCAL_LLM_HOST_PATH="${LOCAL_LLM_HOST_PATH}"
                             export RERANKER_HOST_MODEL_PATH="${RERANKER_HOST_MODEL_PATH}"
+                            export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}"
                             
-                            # 3. Re-create ONLY backend and frontend. 
+                            # 3. Re-create ONLY backend and frontend in the existing stack. 
                             # Neo4j, Qdrant, Prometheus are LEFT RUNNING UNTOUCHED.
-                            docker compose up -d --no-deps backend frontend
+                            docker compose -p ${COMPOSE_PROJECT_NAME} up -d --no-deps backend frontend
                             
                             # 4. Remove temporary .env from workspace
                             rm -f .env
@@ -147,7 +156,7 @@ pipeline {
                             # 5. Health verification
                             echo "Verifying backend health..."
                             sleep 10
-                            curl --fail http://127.0.0.1:8000/healthz/live || exit 1
+                            curl --fail http://host.docker.internal:8000/healthz/live || curl --fail http://127.0.0.1:8000/healthz/live || exit 1
                             echo "Deployment successfully verified!"
                         """
                     }
@@ -159,7 +168,7 @@ pipeline {
     post {
         always {
             // Clean up unused dangling images to preserve disk space
-            sh 'docker image prune -f'
+            sh 'docker image prune -f || true'
         }
         success {
             echo "Pipeline succeeded! All gates passed and containers updated."
