@@ -90,3 +90,9 @@ def test_query_router_classification():
 
     route, _ = router.route_query("What is the total revenue in Q1 and why did margins change?")
     assert route == ROUTE_HYBRID
+
+    route, _ = router.route_query("What was the strongest quarter?")
+    assert route == ROUTE_GRAPH
+
+    cypher, params = router.generate_store_cypher("What was the strongest quarter?", "store_123")
+    assert "ORDER BY coalesce(r.numeric_value, 0) DESC" in cypher

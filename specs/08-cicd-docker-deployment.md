@@ -1,92 +1,124 @@
 # Spec 08: Production Containerization & CI/CD Pipeline
 
 ## 1. Goal & Scope
-Package the entire multi-service system for reproducible deployment and set up automated quality gates:
-- **Container Orchestration**: Multi-container Docker Compose setup managing FastAPI backend, React frontend (or static build served via Nginx), Qdrant, Neo4j, OpenTelemetry Collector, Prometheus, Tempo, and Grafana.
-- **Production Dockerfiles**: Multi-stage builds for both backend (Python slim) and frontend (Node build -> Nginx static serving).
-- **Automated CI/CD Workflow**: GitHub Actions pipeline executing code linting, static type verification, full pytest suite runs, and container build checks on every pull request to `main`.
+Package the multi-service system for reproducible, isolated deployment and establish automated CI/CD quality gates:
+- **Multi-Service Container Orchestration (`docker-compose.yml`)**:
+  - Coordinate 8 interoperating production services:
+    1. `backend`: FastAPI application with Tesseract OCR runtime and cached models.
+    2. `frontend`: React Single Page Application served via Nginx with reverse proxy to backend.
+    3. `qdrant`: High-performance vector database with persistence.
+    4. `neo4j`: Property graph database with APOC plugins and persistence.
+    5. `otel-collector`: OpenTelemetry Collector receiving OTLP traces and metrics.
+    6. `prometheus`: Timeseries database evaluating SLO alerts.
+    7. `tempo`: High-volume distributed trace storage.
+    8. `grafana`: Operational monitoring and telemetry visualization dashboards.
+- **Production Dockerfiles**:
+  - `Dockerfile` (Backend): Multi-stage Python 3.11-slim container with Tesseract OCR OS libraries, pre-warmed HuggingFace model cache, and non-root execution (`appuser`).
+  - `frontend/Dockerfile`: Multi-stage build (`node:20-alpine` build -> `nginx:alpine` static serving with `/api/` reverse proxy).
+- **Automated CI/CD Pipeline (`.github/workflows/ci.yml`)**:
+  - Run linting (`ruff`), static typing, full 60-test pytest suite, and container build checks on every pull request to `main`.
+- **Health Checks & Startup Sequencing**:
+  - Explicit health checks enforce proper dependency startup order: `neo4j` (via `cypher-shell`), `qdrant` (via `/readyz`), and `backend` (via `/healthz/live` and `/healthz/ready`).
 
 ## 2. Target File Tree
 - `Dockerfile`                     # Multi-stage container build for FastAPI backend
 - `frontend/Dockerfile`            # Multi-stage build for React frontend (Vite build + Nginx)
 - `frontend/nginx.conf`            # Nginx proxy configuration routing /api to backend
-- `docker-compose.yml`             # Full stack orchestrator (App, Frontend, Neo4j, Qdrant)
-- `.dockerignore`                  # Prevent virtualenvs, logs, and node_modules in build context
+- `docker-compose.yml`             # Full 8-service stack orchestrator
+- `.dockerignore`                  # Prevents virtualenvs, node_modules, and cache files in build context
 - `.github/workflows/ci.yml`       # Automated GitHub Actions test, lint, and build pipeline
-- `scripts/healthcheck.sh`         # Shell verification script to validate running containers
-- `observability/`                 # Collector, Prometheus, Tempo, and alert configuration
+- `scripts/healthcheck.sh`         # Verification script to validate running container endpoints
+- `observability/*`                # Telemetry configs (otel-collector, prometheus, tempo, alerts)
 
 ## 3. Configuration Specifications
 
-### Docker Services Architecture
-- **backend**:
-  - Build context: root directory (`Dockerfile`).
-  - Environment: `QDRANT_URL=http://qdrant:6333`, `NEO4J_URI=bolt://neo4j:7687`, `NEO4J_USER=neo4j`, `NEO4J_PASSWORD=production_password`.
-  - Depends on: `neo4j` (healthy), `qdrant` (started), and exports OTLP traces to `otel-collector`.
-  - Port: `8000:8000`.
-- **frontend**:
-  - Build context: `./frontend` (`frontend/Dockerfile`).
-  - Port: `3000:80` (or `80:80`).
-  - Depends on: `backend`.
-- **qdrant**:
-  - Image: `qdrant/qdrant:latest`.
-  - Port: `6333:6333`.
-  - Volumes: `qdrant_storage:/qdrant/storage`.
-- **neo4j**:
-  - Image: `neo4j:5.20.0-enterprise` (or community `neo4j:5.20.0`).
-  - Environment: `NEO4J_AUTH=neo4j/production_password`, `NEO4J_PLUGINS=["apoc"]`.
-  - Ports: `7474:7474` (HTTP browser), `7687:7687` (Bolt binary).
-  - Volumes: `neo4j_data:/data`.
-- **otel-collector**:
-  - Receives OTLP gRPC/HTTP on ports 4317/4318, exports traces to Tempo and metrics on port 8889 for Prometheus.
-- **prometheus**:
-  - Scrapes Collector metrics and evaluates SLO alerts from `observability/alerts.yml`.
-- **tempo**:
-  - Stores traces locally and serves the Grafana Tempo datasource.
-- **grafana**:
-  - Provisions API, Prometheus, and Tempo datasources plus the financial and reliability dashboards.
+### 3.1. Docker Services Architecture
+```mermaid
+graph TD
+    Client[Browser User] -->|Port 3000| Frontend[frontend: Nginx]
+    Frontend -->|/api/* Proxy| Backend[backend: FastAPI :8000]
 
-### GitHub Actions Pipeline (`.github/workflows/ci.yml`)
-- Trigger: `push` and `pull_request` against `main` or `master`.
-- Jobs:
-  1. **lint-and-test**:
-     - Python setup (3.11 or 3.12).
-     - Dependency caching via `actions/cache`.
+    Backend -->|gRPC / HTTP| Qdrant[(qdrant: :6333)]
+    Backend -->|Bolt :7687| Neo4j[(neo4j: :7687)]
+    Backend -->|OTLP :4317| OTelCol[otel-collector]
+
+    OTelCol -->|Traces| Tempo[(tempo: :3200)]
+    OTelCol -->|Metrics :8889| Prometheus[(prometheus: :9090)]
+
+    Grafana[grafana: :3001] --> Prometheus
+    Grafana --> Tempo
+```
+
+| Service | Image / Build | Ports | Healthcheck & Dependencies |
+|---|---|---|---|
+| `backend` | `./Dockerfile` | `8000:8000` | Dep on `neo4j` (healthy), `qdrant` (healthy), `otel-collector` |
+| `frontend` | `./frontend/Dockerfile` | `3000:80` | Dep on `backend` (healthy) |
+| `qdrant` | `qdrant/qdrant:latest` | `6333:6333` | Healthcheck: `/readyz` endpoint |
+| `neo4j` | `neo4j:5.20.0` | `7474:7474`, `7687:7687` | Healthcheck: `cypher-shell "RETURN 1"` |
+| `otel-collector` | `otel/opentelemetry-collector-contrib` | `4317`, `4318`, `8889` | Receives gRPC/HTTP OTLP |
+| `prometheus` | `prom/prometheus:latest` | `9090:9090` | Scrapes collector; evaluates `observability/alerts.yml` |
+| `tempo` | `grafana/tempo:latest` | `3200:3200` | Local trace block storage |
+| `grafana` | `grafana/grafana:latest` | `3001:3000` | Datasources pre-provisioned for Prometheus & Tempo |
+
+### 3.2. Root Dockerfile Specifications
+```dockerfile
+FROM python:3.11-slim AS runtime
+
+# Install system dependencies including Tesseract OCR
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    libtesseract-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install wheels
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Create non-root app user
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+COPY --chown=appuser:appuser . .
+
+EXPOSE 8000
+CMD ["uvicorn", "src.api.server:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+### 3.3. Frontend Dockerfile Specifications
+```dockerfile
+# Stage 1: Build static bundle
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# Stage 2: Serve via Nginx
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+### 3.4. GitHub Actions CI Pipeline (`.github/workflows/ci.yml`)
+- **Triggers**: `push` to `main`, `pull_request` against `main`.
+- **Jobs**:
+  1. `lint-and-test`:
+     - Python 3.11 environment.
+     - Cache pip dependencies.
      - Install requirements (`pip install -r requirements.txt`).
-     - Run linter: `ruff check .` (or `flake8`).
-     - Run full automated test suite: `pytest -v`.
-  2. **build-check**:
-     - Runs after test job passes.
-     - Builds Docker containers using `docker compose build` to verify clean builds without image push.
+     - Lint with `ruff check .`.
+     - Execute the full automated test suite: `pytest -v` (verifying all 60 tests).
+  2. `build-check`:
+     - Builds Docker containers via `docker compose build` to verify clean build stages without pushing images.
 
-## 4. Implementation Requirements
-1. **Root `Dockerfile`**:
-   - Base: `python:3.11-slim`.
-   - Install minimal OS runtime packages, copy `requirements.txt`, install wheels with `--no-cache-dir`.
-   - Copy `src/` and necessary assets.
-   - Run as a non-root user (`appuser`).
-   - Expose port 8000; entrypoint: `uvicorn src.api.server:app --host 0.0.0.0 --port 8000`.
-
-2. **Frontend `frontend/Dockerfile`**:
-   - Stage 1 (`build`): `node:20-alpine`, install npm packages, run `npm run build`.
-   - Stage 2 (`serve`): `nginx:alpine`, copy built artifacts from Stage 1 to `/usr/share/nginx/html`.
-   - Copy custom `nginx.conf` forwarding `/api/` traffic to `http://backend:8000/`.
-
-3. **`docker-compose.yml`**:
-   - Define named volumes for `neo4j_data` and `qdrant_storage`.
-   - Include proper health checks for `neo4j` (using `cypher-shell`) and `qdrant` (using `/readyz` endpoint) to enforce startup order.
-  - Configure backend liveness at `/healthz/live` and readiness at `/healthz/ready`.
-
-## 6. Reliability and Triage
-- `/metrics` is scraped by the Collector/Prometheus path and contains `http_requests_total` and `http_request_duration_seconds`.
-- Page alerts are limited to user-facing symptoms: 5xx ratio above 2% or p95 latency above 300 ms.
-- Alert annotations carry a runbook URL and a Tempo-compatible trace filter. Infrastructure saturation alerts should be routed to ticketing/chat rather than paging.
-
-## 5. Constraints
-- The backend image must stay lightweight (under 600MB uncompressed if using CPU-only torch/transformers wheels).
-- All secrets in `docker-compose.yml` must support `.env` substitution fallbacks.
-
-## 6. Acceptance Criteria
-1. `docker compose config` evaluates without syntax or structural errors.
-2. The GitHub Actions YAML passes lint validation.
-3. Running `pytest` continues to pass across all prior test modules (Specs 01-07).
+## 4. Verification & Acceptance Criteria
+1. `docker compose config` evaluates without structural or syntax errors.
+2. `pytest` executes and passes all 60 tests across the repository.
+3. `scripts/healthcheck.sh` successfully verifies HTTP 200 responses from `/api/health`, `/healthz/live`, `/healthz/ready`, and `/metrics`.

@@ -32,7 +32,8 @@ class QueryRouter:
                 "total", "sum", "average", "avg", "margin", "ebitda", "growth", "grew", "grow", "increase",
                 "compare", "difference", "trend", "ratio", "q1", "q2", "q3", "q4",
                 "2024", "2025", "2026", "highest", "lowest", "calculate", "percentage",
-                "balance", "revenue", "profit", "net income", "expense", "how much", "line item", "income statement"
+                "balance", "revenue", "profit", "net income", "expense", "how much", "line item", "income statement",
+                "strongest", "weakest", "quarter", "quarters", "best", "top", "worst", "most", "least"
             )
         )
         has_relationship = any(
@@ -53,7 +54,11 @@ class QueryRouter:
 
         if (has_quantitative or has_relationship) and has_narrative:
             return ROUTE_HYBRID, "Query requires both quantitative data from tables and qualitative explanations from text notes."
-        if has_relationship or (has_quantitative and ("compare" in normalized or "growth" in normalized or "trend" in normalized or "q1" in normalized and "q2" in normalized)):
+        if has_relationship or (has_quantitative and (
+            "compare" in normalized or "growth" in normalized or "trend" in normalized
+            or ("q1" in normalized and "q2" in normalized)
+            or "strongest" in normalized or "highest" in normalized or "best" in normalized or "top" in normalized
+        )):
             return ROUTE_GRAPH, "Query requires multi-hop entity relationships or cross-quarter quantitative traversal."
         if has_quantitative:
             return ROUTE_HYBRID, "Query seeks quantitative metrics with grounded context."
@@ -68,12 +73,29 @@ class QueryRouter:
         keywords = [w for w in words if w.lower() not in stop_words]
         keyword = keywords[0] if keywords else ""
 
+        is_superlative = any(w in query.lower() for w in ("strongest", "highest", "top", "best", "most", "max"))
+        is_quarter_query = "quarter" in query.lower() or any(f"q{i}" in query.lower() for i in range(1, 5))
+
+        if is_superlative and is_quarter_query:
+            cypher = """
+            MATCH (s:Store {id: $store_id})-[:CONTAINS]->(e)
+            MATCH (e)-[r:RELATED|HAS_VALUE]->(t)
+            WHERE (r.store_id = $store_id OR r.store_id IS NULL)
+              AND (r.numeric_value IS NOT NULL OR r.value IS NOT NULL)
+            RETURN e.name AS entity, type(r) AS relationship, t.name AS target, r.value AS value, r.numeric_value AS numeric_value
+            ORDER BY coalesce(r.numeric_value, 0) DESC
+            LIMIT 25
+            """
+            params = {"store_id": store_id}
+            return cypher, params
+
         cypher = """
         MATCH (s:Store {id: $store_id})-[:CONTAINS]->(e)
         WHERE ($keyword = '' OR toLower(e.name) CONTAINS toLower($keyword))
         OPTIONAL MATCH (e)-[r]->(t)
         WHERE r.store_id = $store_id OR r.store_id IS NULL
-        RETURN e.name AS entity, type(r) AS relationship, t.name AS target, r.value AS value
+        RETURN e.name AS entity, type(r) AS relationship, t.name AS target, r.value AS value, r.numeric_value AS numeric_value
+        ORDER BY coalesce(r.numeric_value, 0) DESC
         LIMIT 25
         """
         params = {"store_id": store_id, "keyword": keyword}

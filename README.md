@@ -299,7 +299,7 @@ Open the application at:
 - Frontend: http://localhost:3000
 - Backend health: http://localhost:8000/api/health
 - Qdrant: http://localhost:6333
-- Neo4j browser: http://localhost:7474
+- Neo4j browser: http://localhost:7474 (see [docs/NEO4J_QUERIES.md](docs/NEO4J_QUERIES.md) for full Cypher catalog)
 
 Check service status:
 

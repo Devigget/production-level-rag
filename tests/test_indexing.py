@@ -42,10 +42,22 @@ def test_graph_extractor_extracts_metrics_and_quarters():
         "sample_pnl.csv",
         "Revenue",
         "Q1_2025",
+        "Q2_2025",
     }
+    has_value_rel = next(
+        r for r in extracted.relations
+        if r.relationship_type == "HAS_VALUE" and r.source_entity == "Revenue" and r.target_entity == "Q1_2025"
+    )
+    assert has_value_rel.properties["numeric_value"] == 1200000.0
+
+    q1_entity = next(e for e in extracted.entities if e.name == "Q1_2025")
+    assert q1_entity.properties.get("quarter") == 1
+    assert q1_entity.properties.get("year") == 2025
+
     assert any(
-        relation.relationship_type == "HAS_VALUE"
-        and relation.source_entity == "Revenue"
+        relation.relationship_type == "NEXT_PERIOD"
+        and relation.source_entity == "Q1_2025"
+        and relation.target_entity == "Q2_2025"
         for relation in extracted.relations
     )
 
@@ -78,3 +90,26 @@ def test_indexer_combines_vector_and_graph_layers():
     assert result["chunks_indexed"] == 1
     assert result["entities_indexed"] >= 2
     assert result["relations_indexed"] >= 2
+
+
+def test_graph_store_registers_document_and_links_unstructured():
+    driver = MagicMock()
+    session = driver.session.return_value.__enter__.return_value
+    store = GraphStore(settings=IndexingSettings(), driver=driver)
+
+    store.register_document(
+        store_id="store_test",
+        store_name="Test Store",
+        doc_id="doc_123",
+        filename="test.pdf",
+    )
+    assert session.run.call_count == 1
+    assert "MERGE (s:Store {id: $store_id})" in session.run.call_args[0][0]
+    assert "MERGE (d:Document {id: $doc_id})" in session.run.call_args[0][0]
+
+    store.link_unstructured_entities(
+        store_id="store_test",
+        doc_id="doc_123",
+        filename="test.pdf",
+    )
+    assert session.run.call_count == 3

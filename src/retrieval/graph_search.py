@@ -10,27 +10,50 @@ from .models import RetrievedContext
 
 
 GRAPH_QUERY = """
-MATCH (entity:FinancialEntity)
-WHERE toLower($query_text) CONTAINS toLower(entity.name)
-MATCH path=(entity)-[*1..2]-(connected:FinancialEntity)
+MATCH (entity)
+WHERE (entity:FinancialEntity OR entity:Metric OR entity:Quarter)
+  AND (
+    toLower($query_text) CONTAINS toLower(entity.name)
+    OR (toLower(entity.name) CONTAINS 'revenue' AND toLower($query_text) CONTAINS 'revenue')
+    OR (toLower(entity.name) CONTAINS 'income' AND toLower($query_text) CONTAINS 'income')
+    OR (toLower(entity.name) CONTAINS 'profit' AND toLower($query_text) CONTAINS 'profit')
+    OR (
+      (entity:Quarter OR entity.category = 'Quarter')
+      AND ($query_text =~ '(?i).*(quarter|strongest|highest|best|top|q1|q2|q3|q4).*')
+    )
+  )
+MATCH path=(entity)-[*1..2]-(connected)
 UNWIND relationships(path) AS relation
 WITH entity, relation, connected, length(path) AS hops
-WHERE relation.chunk_id IS NOT NULL
-RETURN relation.chunk_id AS id,
-       coalesce(relation.content, relation.value, connected.name) AS content,
+WHERE relation.chunk_id IS NOT NULL OR relation.value IS NOT NULL OR relation.numeric_value IS NOT NULL
+RETURN coalesce(relation.chunk_id, entity.id, toString(id(entity))) AS id,
+       coalesce(relation.content, relation.value, connected.name, entity.name) AS content,
        1.0 / hops AS score,
        {entity: entity.name, connected_entity: connected.name, hops: hops,
         graph_nodes_traversed: [entity.name, connected.name],
-        source_file: relation.source_file} AS metadata
-ORDER BY score DESC
+        source_file: relation.source_file,
+        numeric_value: relation.numeric_value} AS metadata
+ORDER BY
+  CASE WHEN toLower($query_text) =~ '(?i).*(strongest|highest|top|best|max).*' AND relation.numeric_value IS NOT NULL
+       THEN relation.numeric_value ELSE 0 END DESC,
+  score DESC
 LIMIT $limit
 """
 
 STORE_SCOPED_GRAPH_QUERY = """
 MATCH (entity)
-WHERE (entity:FinancialEntity OR entity:Metric)
+WHERE (entity:FinancialEntity OR entity:Metric OR entity:Quarter)
   AND (entity.store_id = $store_id OR ($store_id = 'default' AND entity.store_id IS NULL))
-  AND toLower($query_text) CONTAINS toLower(entity.name)
+  AND (
+    toLower($query_text) CONTAINS toLower(entity.name)
+    OR (toLower(entity.name) CONTAINS 'revenue' AND toLower($query_text) CONTAINS 'revenue')
+    OR (toLower(entity.name) CONTAINS 'income' AND toLower($query_text) CONTAINS 'income')
+    OR (toLower(entity.name) CONTAINS 'profit' AND toLower($query_text) CONTAINS 'profit')
+    OR (
+      (entity:Quarter OR entity.category = 'Quarter')
+      AND ($query_text =~ '(?i).*(quarter|strongest|highest|best|top|q1|q2|q3|q4).*')
+    )
+  )
 MATCH path=(entity)-[*1..2]-(connected)
 WHERE (connected.store_id = $store_id OR ($store_id = 'default' AND connected.store_id IS NULL))
 UNWIND relationships(path) AS relation
@@ -42,8 +65,12 @@ RETURN coalesce(relation.chunk_id, entity.id, toString(id(entity))) AS id,
        {entity: entity.name, connected_entity: connected.name, hops: hops,
         graph_nodes_traversed: [entity.name, connected.name],
         source_file: relation.source_file,
+        numeric_value: relation.numeric_value,
         store_id: $store_id} AS metadata
-ORDER BY score DESC
+ORDER BY
+  CASE WHEN toLower($query_text) =~ '(?i).*(strongest|highest|top|best|max).*' AND relation.numeric_value IS NOT NULL
+       THEN relation.numeric_value ELSE 0 END DESC,
+  score DESC
 LIMIT $limit
 """
 

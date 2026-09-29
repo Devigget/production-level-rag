@@ -112,6 +112,32 @@ from src.observability import dependency_status, instrument_fastapi, metrics_pay
 instrument_fastapi(app)
 
 
+@app.on_event("startup")
+def startup_sync_graph() -> None:
+    if indexer is not None and hasattr(indexer, "graph_store"):
+        try:
+            for store in store_manager.list_stores():
+                for doc in store.documents:
+                    indexer.graph_store.register_document(
+                        store_id=store.id,
+                        store_name=store.name,
+                        doc_id=doc.doc_id,
+                        filename=doc.filename,
+                        file_type=doc.file_type,
+                        total_chunks=doc.total_chunks,
+                        chunk_types=doc.chunk_types,
+                        uploaded_at=doc.uploaded_at,
+                    )
+                    indexer.graph_store.link_unstructured_entities(
+                        store_id=store.id,
+                        doc_id=doc.doc_id,
+                        filename=doc.filename,
+                    )
+            logger.info("Startup graph sync completed for registered stores")
+        except Exception as exc:
+            logger.warning("Startup graph sync failed: %s", exc)
+
+
 def _graph_nodes(contexts: list[dict[str, Any]]) -> list[str]:
     nodes: list[str] = []
     for context in contexts:
@@ -498,8 +524,25 @@ def upload(
 
         structured_store.upsert(result.chunks)
 
+        chunk_types = sorted({chunk.chunk_type for chunk in result.chunks})
+
         if indexer is not None:
             indexer.index(result.chunks)
+            if hasattr(indexer, "graph_store"):
+                try:
+                    indexer.graph_store.register_document(
+                        store_id=clean_store_id,
+                        store_name=store_name,
+                        doc_id=doc_id,
+                        filename=filename,
+                        file_type=suffix,
+                        total_chunks=result.total_chunks,
+                        chunk_types=chunk_types,
+                        uploaded_at=time.strftime("%Y-%m-%d %H:%M:%S"),
+                    )
+                except Exception as g_exc:
+                    logger.warning("Graph document root registration failed: %s", g_exc)
+
             # If tabular, run Graph DB ingestion (LLM/heuristic Blueprint -> Cypher batch MERGE)
             if suffix in {".csv", ".xlsx", ".xls"} and hasattr(indexer, "graph_store"):
                 try:
@@ -518,6 +561,15 @@ def upload(
                     )
                 except Exception as g_exc:
                     logger.warning("Graph batch ingestion failed: %s", g_exc)
+            elif hasattr(indexer, "graph_store"):
+                try:
+                    indexer.graph_store.link_unstructured_entities(
+                        store_id=clean_store_id,
+                        doc_id=doc_id,
+                        filename=filename,
+                    )
+                except Exception as g_exc:
+                    logger.warning("Graph unstructured linking failed: %s", g_exc)
 
         chunk_types = sorted({chunk.chunk_type for chunk in result.chunks})
 

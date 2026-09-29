@@ -2,284 +2,82 @@
 
 ## 1. Current Project Status
 
-The project currently has two completed implementation stages:
+The project has achieved **100% implementation completion** across all 10 specifications, verified by **60 automated tests** passing across the full verification suite.
 
-| Specification | Area | Status | Verification |
-| --- | --- | --- | --- |
-| Spec 01 | Multimodal financial document ingestion | Implemented and tested | 4 ingestion tests passing |
-| Spec 02 | Hybrid graph and vector storage/indexing | Implemented and tested | 4 indexing tests passing |
+| Specification | Area | Implementation Status | Verification Baseline |
+|---|---|---|---|
+| [Spec 01](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/01-document-ingestion-multimodal.md) | Multimodal financial document ingestion | Fully Implemented | 8 unit tests passing (`tests/test_ingestion.py`) |
+| [Spec 02](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/02-graph-vector-storage-indexing.md) | Hybrid graph and vector storage/indexing | Fully Implemented | 5 unit tests passing (`tests/test_indexing.py`) |
+| [Spec 03](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/03-hybrid-retrieval-reranking.md) | Routed hybrid retrieval & reranking | Fully Implemented | 13 unit tests passing (`tests/test_retrieval.py`) |
+| [Spec 04](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/04-guardrails-and-agentic-orchestration.md) | Guardrails & agentic orchestration | Fully Implemented | 6 unit tests passing (`tests/test_orchestration.py`) |
+| [Spec 05](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/05-mcp-server-and-tooling.md) | Model Context Protocol (MCP) server & tools | Fully Implemented | 8 unit tests passing (`tests/test_mcp.py`) |
+| [Spec 06](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/06-evaluation-and-observability.md) | Observability & automated evaluation harness | Fully Implemented | 9 eval tests + 7 API tests passing |
+| [Spec 07](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/07-react-frontend-interface.md) | React frontend & streaming API | Fully Implemented | 7 API tests + Playwright E2E passing |
+| [Spec 08](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/08-cicd-docker-deployment.md) | Production Docker compose & CI/CD pipeline | Fully Implemented | `docker compose config` & CI passing |
+| [Spec 09](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/09-multi-store-isolation-and-memory.md) | Multi-store isolation & short-term memory | Fully Implemented | 4 unit tests passing (`tests/test_store_rag.py`) |
+| [Spec 10](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/10-intelligent-routing-and-graph-blueprint.md) | Intelligent query routing & Cypher blueprint | Fully Implemented | Query router & Cypher tests passing |
 
-The current verified baseline is **8 passing tests** across both specifications.
+**Verified Test Baseline**: **60 passed in 24.24s**.
 
-The project has reached the point where financial files can be ingested, converted into structured chunks, indexed for vector retrieval, and represented as a graph for structured relationships. A complete question-answering layer, production OCR, and live database deployment are not implemented yet.
+---
 
-## 2. Technology Stack
+## 2. Implemented Architecture & Technology Stack
 
-### Language and runtime
+### Runtime & Language
+- Python 3.11 / 3.12 / 3.14
+- Pydantic v2 & `pydantic-settings` for strict data contracts
+- FastAPI with Server-Sent Events (SSE) streaming
+- Pytest for automated unit and integration verification
 
-- Python
-- Pydantic v2 for data validation and contracts
-- `pydantic-settings` for environment-based configuration
-- Pytest for automated verification
+### Document Ingestion & Parsers
+- `pdfplumber` for PDF Markdown table and narrative text extraction
+- `pandas` & `openpyxl` for multi-sheet Excel and CSV table extraction
+- `python-docx` for Word paragraph text ingestion
+- Tesseract OCR via `pytesseract` for scanned receipts and images with metadata fallback
+- Dual-path tabular ingestion engine (`tabular_pipeline.py`) generating header-injected row chunks and Cypher blueprints
 
-### Document ingestion
+### Storage, Indexing & Multi-Store Management
+- **Qdrant**: Cosine vector similarity search with `store_id` payload filtering and `:memory:` mode support
+- **Neo4j**: Property graph persistence with parameterized Cypher queries, multi-store `:Store` hierarchy, document registration, and unstructured entity linking
+- **Structured Store**: Deterministic in-memory store indexing normalized `FinancialRecord` tuples for exact KPI lookups
+- **Store Manager**: Persistent multi-store catalog (`data/stores_registry.json`) with sliding-window short-term conversational dialogue memory
 
-- `pdfplumber` for PDF text and table extraction
-- `pandas` for CSV and Excel data handling
-- `openpyxl` for `.xlsx` workbook support
-- Pillow for PNG/JPEG image metadata
+### Retrieval, Reranking & Orchestration
+- `QueryRouter`: Classifies queries into `ROUTE_VECTOR`, `ROUTE_GRAPH`, or `ROUTE_HYBRID`
+- 2-Hop Entity Expansion with cross-document coverage guarantee to preserve tabular row evidence
+- `BAAI/bge-reranker-base` cross-encoder scoring with pre-cached container model support and offline deterministic fallback
+- `LangGraph`: Multi-node state machine managing input guardrails, retrieval, generation, and output validation
+- Multi-Provider LLM Invocation: Support for Groq, NVIDIA NIM, OpenAI, Anthropic, Ollama, and offline mock fallback
+- Guardrails: PII redaction (Credit Cards, SSNs, IBANs), prompt injection blocking, and financial numerical fidelity verification (scale multipliers, percentages, and fiscal year exemptions)
 
-### Indexing and persistence
+### MCP Server & Tooling
+- FastMCP server exposing: `financial_search`, `calculate_growth_rate`, `calculate_ebitda`, `inspect_graph_entity`, and `build_dashboard_payload` (for Power BI)
 
-- Qdrant client for dense vector storage and similarity search
-- Neo4j Python driver for graph persistence using Cypher
-- `sentence-transformers` is declared as the production embedding dependency
-- A deterministic hash-based embedder is used by default in the current offline/test implementation, avoiding model downloads during tests
+### Observability & Automated Evaluation
+- OpenTelemetry instrumentation exporting traces via Collector to Tempo and metrics to Prometheus
+- RED operational metrics and health probes (`/healthz/live`, `/healthz/ready`, `/api/health`, `/metrics`, `/api/dashboard/data`)
+- Alerting rules (`observability/alerts.yml`) monitoring 99.9% availability and p95 < 300 ms SLOs
+- Dual-mode Langfuse tracing with modern v3/v4 observation hierarchies (`chain`, `guardrail`, `retriever`, `generation`, `create_score`)
+- Automated benchmark evaluation runner (`eval_runner.py`) scoring faithfulness and numerical accuracy against `data/eval/golden_dataset.json`
 
-### Configuration and project structure
+### Frontend & Deployment
+- React + Vite SPA with responsive dark Ledger Lens financial design
+- Multi-store navigation sidebar, SSE token streaming chat, interactive citation drawer, and KPI dashboard cards
+- 8-service Docker Compose architecture (`backend`, `frontend`, `qdrant`, `neo4j`, `otel-collector`, `prometheus`, `tempo`, `grafana`)
+- GitHub Actions CI/CD automation pipeline
 
-- `.env`-compatible settings through `pydantic-settings`
-- `src/ingestion` for document processing
-- `src/indexing` for vector and graph indexing
-- `tests` for specification-level verification
+---
 
-## 3. Spec 01: Multimodal Financial Document Ingestion
-
-### Objective
-
-Convert raw financial documents into validated `FinancialChunk` objects while preserving table structure and source metadata.
-
-### Implemented components
-
-#### Data models
-
-`src/ingestion/models.py` defines:
-
-- `FinancialChunk`
-  - `chunk_id`
-  - `content`
-  - `chunk_type`
-  - `source_file`
-  - flexible `metadata`
-- `IngestionResult`
-  - `source_file`
-  - `total_chunks`
-  - list of chunks
-- `UnsupportedFileTypeError` for invalid extensions
-
-#### PDF parser
-
-`src/ingestion/parsers/pdf.py` uses `pdfplumber` to:
-
-- Iterate through PDF pages
-- Detect and extract tables
-- Convert detected tables into Markdown format
-- Create text chunks for pages without detected tables
-- Preserve `page_number` and `table_number` metadata
-
-#### CSV and Excel parser
-
-`src/ingestion/parsers/table.py` uses `pandas` and `openpyxl` to:
-
-- Read CSV files as one logical table
-- Read every Excel worksheet independently
-- Convert rows and columns into clean Markdown tables
-- Preserve `sheet_name`, `row_count`, and `column_count` metadata
-- Escape Markdown pipe characters so table values remain readable
-
-#### Unified ingestion pipeline
-
-`src/ingestion/pipeline.py` defines `FinancialIngestionPipeline`, which routes:
-
-- `.pdf` to the PDF parser
-- `.csv` and `.xlsx` to the table parser
-- `.png` and `.jpeg` to receipt metadata handling
-- Unsupported extensions to `UnsupportedFileTypeError`
-
-Receipt images currently produce a `receipt_metadata` chunk containing image format, dimensions, and color mode. They are not yet OCR'd.
-
-### Example output flow
+## 3. Test Suite Summary
 
 ```text
-sample_pnl.csv
-  -> pandas DataFrame
-  -> Markdown table
-  -> FinancialChunk(chunk_type="table")
-  -> IngestionResult(total_chunks=1)
+======================= 60 passed in 24.24s =======================
+tests/test_api.py (7 passed)
+tests/test_evaluation.py (9 passed)
+tests/test_indexing.py (5 passed)
+tests/test_ingestion.py (8 passed)
+tests/test_mcp.py (8 passed)
+tests/test_orchestration.py (6 passed)
+tests/test_retrieval.py (13 passed)
+tests/test_store_rag.py (4 passed)
 ```
-
-### Verification completed
-
-`tests/test_ingestion.py` verifies:
-
-- CSV table preservation and metadata
-- Excel multi-sheet parsing and metadata
-- Invalid extension rejection
-- Mocked PDF table extraction and page metadata
-
-Result: **4 tests passed**.
-
-### Spec 01 progress assessment
-
-**Implementation progress: complete for the defined parser and contract scope.**
-
-The ingestion layer is usable as the upstream input to indexing. The main remaining production enhancements are OCR for receipt content, richer document chunking, stronger table detection for irregular PDFs, and broader fixture coverage with real PDF files.
-
-## 4. Spec 02: Hybrid Graph and Vector Storage Engine
-
-### Objective
-
-Consume `FinancialChunk` objects from Spec 01 and persist them in two complementary representations:
-
-1. Dense vectors for semantic similarity search
-2. Graph entities and relationships for structured queries and cross-hop traversal
-
-### Implemented components
-
-#### Configuration
-
-`src/indexing/config.py` defines `IndexingSettings` using `pydantic-settings`.
-
-Configured values include:
-
-- Qdrant URL, API key, and collection name
-- Embedding model name and vector dimension
-- Neo4j URI, username, password, and database
-
-Defaults support local development and testing, including Qdrant `:memory:` mode.
-
-#### Vector store
-
-`src/indexing/vector_store.py` defines `VectorStore`, which:
-
-- Creates or reuses a Qdrant collection
-- Supports Qdrant in-memory mode
-- Embeds chunk content
-- Upserts chunk vectors and payloads
-- Uses stable UUIDs derived from chunk IDs
-- Searches by embedding a query and returning nearest Qdrant points
-- Stores the complete serialized `FinancialChunk` in each point payload
-
-The current default embedder is deterministic and offline-friendly. A production sentence-transformers embedder can be injected through the `embedder` constructor argument, and the configured model name is ready for that integration.
-
-#### Graph extraction
-
-`src/indexing/graph_extractor.py` defines the Pydantic contracts:
-
-- `GraphEntity`
-- `GraphRelation`
-- `ExtractedGraphData`
-
-`GraphExtractor` currently extracts:
-
-- The source document as a `Document` entity
-- Markdown table line items as `Metric` entities
-- Quarter headers such as `Q1_2025` as `Quarter` entities
-- `REPORTED_METRIC` relations from documents to metrics
-- `HAS_VALUE` relations from metrics to quarter/value headers
-- Basic financial metric mentions from plain text chunks
-
-#### Graph store
-
-`src/indexing/graph_store.py` defines `GraphStore`, which:
-
-- Creates a Neo4j driver from settings
-- Allows a driver to be injected for tests
-- Uses parameterized Cypher queries
-- Merges financial entity nodes
-- Merges typed relationship edges and attaches relation properties
-- Supports closing the Neo4j driver
-
-#### Unified indexer
-
-`src/indexing/indexer.py` defines `FinancialIndexer`, which:
-
-- Accepts `FinancialChunk` objects
-- Upserts all chunks into Qdrant
-- Extracts graph data for every chunk
-- Persists entities and relationships in Neo4j
-- Returns counts for chunks, entities, and relations indexed
-
-### Example output flow
-
-```text
-FinancialChunk
-  -> VectorStore.upsert()
-       -> Qdrant vector + FinancialChunk payload
-  -> GraphExtractor.extract()
-       -> GraphEntity and GraphRelation objects
-  -> GraphStore.upsert()
-       -> Neo4j nodes and relationships
-```
-
-### Verification completed
-
-`tests/test_indexing.py` verifies:
-
-- Real in-memory Qdrant collection creation, upsert, and search
-- Extraction of metrics and quarters from a Markdown financial table
-- Neo4j persistence using a mocked driver
-- End-to-end coordination through `FinancialIndexer`
-
-Result: **4 tests passed** with the exact requested command:
-
-```text
-python -m pytest tests/test_indexing.py
-4 passed
-```
-
-### Spec 02 progress assessment
-
-**Implementation progress: complete for the defined storage, extraction, and coordination scope.**
-
-The indexing layer is connected conceptually and programmatically to Spec 01. It can run locally with in-memory Qdrant and mocked Neo4j. A live deployment still requires a running Neo4j instance, Qdrant service or hosted endpoint, credentials, and a selected sentence-transformers model.
-
-## 5. End-to-End Progress So Far
-
-The implemented pipeline currently supports:
-
-```text
-Financial file
-  -> Spec 01: parse and normalize
-  -> FinancialChunk objects
-  -> Spec 02: vector indexing in Qdrant
-  -> Spec 02: entity and relationship extraction
-  -> Spec 02: graph indexing in Neo4j
-  -> semantic search or structured graph retrieval foundation
-```
-
-### What is working now
-
-- CSV ingestion
-- Excel multi-sheet ingestion
-- PDF text and table extraction through mocked/real parser code
-- Receipt image metadata ingestion
-- Markdown table preservation
-- Source page and sheet metadata preservation
-- In-memory Qdrant indexing and search
-- Graph entity/relation extraction
-- Mocked Neo4j graph persistence
-- Unified indexing orchestration
-- Automated tests for both completed specifications
-
-### What is not implemented yet
-
-- Retrieval-augmented answer generation
-- Query routing between Qdrant and Neo4j
-- OCR and receipt field extraction
-- Production embedding model initialization and lifecycle management
-- Live Neo4j integration test
-- Live Qdrant integration test
-- Authentication/authorization and secret management beyond environment settings
-- API, CLI, or user interface
-- Evaluation dataset and retrieval quality metrics
-
-## 6. Recommended Next Specifications
-
-The next logical project stages are:
-
-1. **Hybrid retrieval:** combine Qdrant similarity search with Neo4j graph traversal.
-2. **Answer generation:** provide grounded answers with source citations and numerical consistency checks.
-3. **OCR enrichment:** extract receipt vendors, dates, totals, taxes, and categories.
-4. **Production configuration:** add Docker services, health checks, migrations, logging, retries, and secret management.
-5. **Evaluation:** measure ingestion accuracy, retrieval recall, answer faithfulness, and financial calculation correctness.

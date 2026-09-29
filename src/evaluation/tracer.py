@@ -187,7 +187,12 @@ class Tracer:
         # 1. Modern Langfuse v4 OpenTelemetry Observation Flow (Real Langfuse client)
         if hasattr(self.client, "start_as_current_observation") and not is_mock_with_trace:
             try:
-                from langfuse import propagate_attributes
+                try:
+                    from langfuse import propagate_attributes
+                except ImportError:
+                    from contextlib import nullcontext
+                    def propagate_attributes(**kwargs):
+                        return nullcontext()
 
                 with self.client.start_as_current_observation(
                     name="financial-rag-chat",

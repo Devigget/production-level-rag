@@ -168,6 +168,8 @@ class HybridRetrievalEngine:
         relationship_terms = (
             "who approved", "which vendor", "which department", "related to",
             "across subsidiaries", "trace", "supporting chain", "ownership",
+            "strongest quarter", "highest quarter", "best quarter", "compare quarter",
+            "quarter over quarter", "trend across quarters"
         )
         normalized = query.lower()
         return any(term in normalized for term in relationship_terms)

@@ -132,6 +132,8 @@ def extract_schema_blueprint(
     metric_edges = []
     
     for col in columns[1:]:
+        if str(col).lower().startswith("unnamed:"):
+            continue
         is_temporal = bool(re.search(r"Q\d|20\d\d|19\d\d|date|period|month|year", col, re.I))
         temporal_node = "Quarter" if re.search(r"Q\d", col, re.I) else "Date" if "date" in col.lower() else "Period"
         metric_edges.append({
@@ -202,6 +204,8 @@ def compile_cypher_statements(
         f"""
         UNWIND $rows AS row
         WITH row WHERE row['{key_col}'] IS NOT NULL AND toString(row['{key_col}']) <> ''
+          AND NOT toLower(toString(row['{key_col}'])) IN ['line item', 'metric', 'category', 'account', 'quarter']
+          AND NOT toLower(toString(row['{key_col}'])) CONTAINS 'synthetic'
         MERGE (e:{entity_label} {{id: $store_id + '#' + toString(row['{key_col}'])}})
         SET e.name = toString(row['{key_col}']),
             e.store_id = $store_id,
@@ -215,13 +219,15 @@ def compile_cypher_statements(
     )
 
     # 3. Batch merge metric edges with temporal nodes
-    for edge in blueprint.get("metric_edges", []):
+    valid_metric_edges = [
+        edge for edge in blueprint.get("metric_edges", [])
+        if edge.get("value_column") and not str(edge.get("value_column")).lower().startswith("unnamed:")
+    ]
+    for edge in valid_metric_edges:
         val_col = edge.get("value_column")
         temporal_node = edge.get("target_temporal_node", "Period")
         temporal_val = edge.get("temporal_value", val_col)
         edge_name = edge.get("edge_name", "HAS_VALUE")
-        if not val_col:
-            continue
 
         statements.append(
             f"""
@@ -232,7 +238,22 @@ def compile_cypher_statements(
             SET t.name = '{temporal_val}', t.store_id = $store_id
             MERGE (e)-[r:{edge_name} {{doc_id: $doc_id, store_id: $store_id}}]->(t)
             SET r.value = toString(row['{val_col}']),
+                r.numeric_value = toFloat(replace(replace(replace(replace(toString(row['{val_col}']), '$', ''), ',', ''), '%', ''), ' ', '')),
                 r.source_file = $filename
+            """
+        )
+
+    # 4. Link chronological temporal nodes
+    for i in range(len(valid_metric_edges) - 1):
+        t1_node = valid_metric_edges[i].get("target_temporal_node", "Period")
+        t1_val = valid_metric_edges[i].get("temporal_value", valid_metric_edges[i].get("value_column"))
+        t2_node = valid_metric_edges[i + 1].get("target_temporal_node", "Period")
+        t2_val = valid_metric_edges[i + 1].get("temporal_value", valid_metric_edges[i + 1].get("value_column"))
+        statements.append(
+            f"""
+            MATCH (t1:{t1_node} {{id: $store_id + '#' + '{t1_val}'}})
+            MATCH (t2:{t2_node} {{id: $store_id + '#' + '{t2_val}'}})
+            MERGE (t1)-[r:NEXT_PERIOD {{doc_id: $doc_id, store_id: $store_id}}]->(t2)
             """
         )
 
