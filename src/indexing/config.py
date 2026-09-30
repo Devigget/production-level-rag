@@ -1,4 +1,5 @@
 """Connection and model settings for the indexing layer."""
+"""This is the indexing config file"""
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
