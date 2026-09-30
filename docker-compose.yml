@@ -38,8 +38,7 @@ services:
       - hf_cache:/home/appuser/.cache/huggingface
       - "${RERANKER_HOST_MODEL_PATH:-C:/Users/VigneshPandurangGaun/OneDrive - McLaren Strategic Solutions US Inc/Documents/models/Reranker models}:/models/bge-reranker-base:ro"
       - "${LOCAL_LLM_HOST_PATH:-C:/Users/VigneshPandurangGaun/OneDrive - McLaren Strategic Solutions US Inc/Documents/models/llm/Qwen2.5-1.5B-Instruct}:/models/llm/Qwen2.5-1.5B-Instruct:ro"
-      - ./src:/app/src:ro
-      - ./data:/app/data
+      - backend_data:/app/data
     depends_on:
       neo4j:
         condition: service_healthy
@@ -151,3 +150,4 @@ volumes:
   prometheus_storage:
   tempo_storage:
   hf_cache:
+  backend_data:
