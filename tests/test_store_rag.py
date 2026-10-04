@@ -96,3 +96,32 @@ def test_query_router_classification():
 
     cypher, params = router.generate_store_cypher("What was the strongest quarter?", "store_123")
     assert "ORDER BY coalesce(r.numeric_value, 0) DESC" in cypher
+
+
+def test_store_manager_cross_replica_sync_and_deduplication(tmp_path):
+    from src.store.manager import StoreManager, DocumentMetadata
+
+    registry_file = tmp_path / "stores_registry.json"
+    replica_1 = StoreManager(persistence_file=registry_file)
+    replica_2 = StoreManager(persistence_file=registry_file)
+
+    # 1. Replica 1 creates store
+    store = replica_1.create_store(name="Brew and Bean")
+    assert store.name == "Brew and Bean"
+
+    # 2. Replica 2 immediately sees it on list_stores without manual restart
+    stores_on_r2 = replica_2.list_stores()
+    assert any(s.id == store.id and s.name == "Brew and Bean" for s in stores_on_r2)
+
+    # 3. Replica 2 adds document
+    doc = DocumentMetadata(doc_id="doc1", store_id=store.id, filename="q4.pdf", file_type=".pdf")
+    replica_2.add_document(store.id, doc)
+
+    # 4. Replica 1 immediately sees the document
+    docs_on_r1 = replica_1.list_documents(store.id)
+    assert len(docs_on_r1) == 1
+    assert docs_on_r1[0].doc_id == "doc1"
+
+    # 5. Verify no duplicate IDs exist
+    all_ids = [s.id for s in replica_1.list_stores()]
+    assert len(all_ids) == len(set(all_ids))

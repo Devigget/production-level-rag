@@ -2,10 +2,19 @@
 
 ## 1. Goal & Scope
 Build the production telemetry, operational monitoring, and automated quality evaluation suite:
-- **Distributed Tracing (OpenTelemetry)**:
-  - Instrument the FastAPI application using OpenTelemetry.
+- **Distributed Tracing (OpenTelemetry & Tempo)**:
+  - Instrument the FastAPI application using OpenTelemetry (`opentelemetry-instrumentation-fastapi`).
   - Propagate W3C trace contexts through request pipelines.
-  - Export spans via an OpenTelemetry Collector to Tempo for end-to-end trace visualization in Grafana.
+  - Export spans via an OpenTelemetry Collector (`otlp/tempo` exporter) to Tempo (`tempo:4317`) for end-to-end trace visualization in Grafana.
+- **Operational Dashboards & Grafana Auto-Provisioning (`k8s/09-observability.yaml`)**:
+  - Automatically provision datasources on container startup:
+    1. **Financial RAG API** (`yesoreyeram-infinity-datasource` at `http://backend:8000`): Default datasource querying `/api/dashboard/data`.
+    2. **Prometheus** (`prometheus` at `http://prometheus:9090`): Metrics timeseries engine.
+    3. **Tempo** (`tempo` at `http://tempo:3200`): Distributed trace visualization engine.
+  - Automatically provision project dashboards in the **Financial RAG** folder:
+    1. **Financial RAG Showcase** ([`financial-rag.json`](file:///grafana/dashboards/financial-rag.json)): Real-time revenue KPIs, grounded record tables, and period bar charts via the Infinity plugin.
+    2. **Financial RAG Reliability** ([`observability.json`](file:///grafana/dashboards/observability.json)): 5-minute availability, request rates, p95 latency, and RED metrics by route via Prometheus.
+  - Automate plugin installation via `GF_INSTALL_PLUGINS: "yesoreyeram-infinity-datasource"`.
 - **Structured JSON Logging**:
   - Format all backend logs as JSON containing `timestamp`, `level`, `logger`, `message`, `service`, `trace_id`, and `span_id` for instant correlation with traces.
 - **RED Metrics & Prometheus Exposition**:
@@ -31,6 +40,11 @@ Build the production telemetry, operational monitoring, and automated quality ev
 - `observability/prometheus.yml`               # Prometheus scrape configs and alert rule references
 - `observability/alerts.yml`                   # SLO error-budget and latency alert definitions
 - `observability/tempo.yaml`                    # Local Tempo trace storage configuration
+- `grafana/provisioning/datasources/datasource.yml` # Declarative Grafana datasources
+- `grafana/provisioning/dashboards/dashboard.yml`   # Declarative Grafana dashboard provider
+- `grafana/dashboards/financial-rag.json`      # Financial RAG Showcase dashboard model
+- `grafana/dashboards/observability.json`      # Financial RAG Reliability dashboard model
+- `k8s/09-observability.yaml`                  # Kubernetes OTel, Tempo, Prometheus, and Grafana manifests
 - `src/evaluation/config.py`                    # EvaluationSettings (Langfuse keys, thresholds)
 - `src/evaluation/tracer.py`                    # Dual-mode Langfuse tracer with observation trees
 - `src/evaluation/metrics.py`                   # Faithfulness, precision, recall, and hallucination scoring
@@ -77,19 +91,32 @@ graph TD
     Middleware --> OTelTracer[OpenTelemetry Tracer]
     
     OTelTracer --> Collector[OTel Collector :4317/:4318]
-    Collector --> Tempo[Tempo Trace Storage]
-    Collector --> PromExport[Prometheus Exporter :8889]
+    Collector -->|otlp/tempo| Tempo[Tempo Trace Storage :3200]
+    Collector -->|prometheus| PromExport[Prometheus Exporter :8889]
     
-    PromExport --> Prometheus[Prometheus Engine]
+    PromExport --> Prometheus[Prometheus Engine :9090]
     Prometheus --> Alerts[Alertmanager: SLO Rules]
     
     FastAPI --> LangfuseTracer[Langfuse Evaluation Tracer]
     LangfuseTracer -->|Observations & Scores| LangfuseCloud[Langfuse Server / Cloud]
     
-    Tempo & Prometheus --> Grafana[Grafana Dashboards]
+    Grafana[Grafana :3001] -->|Prometheus DS| Prometheus
+    Grafana -->|Tempo DS| Tempo
+    Grafana -->|Infinity DS| FastAPI
 ```
 
-### 4.1. Langfuse Tracing Hierarchies (`src/evaluation/tracer.py`)
+### 4.1. Grafana Datasource & Dashboard Provisioning
+In Kubernetes, all configurations are mounted from ConfigMaps (`grafana-datasources`, `grafana-dashboard-providers`, `grafana-dashboards`):
+
+1. **Infinity Datasource (`financial-rag-api`)**:
+   - Proxy requests directly to `http://backend:8000`.
+   - Executes queries against `/api/dashboard/data?query=revenue` to populate table records and bar chart visualizations without custom middleware.
+2. **Prometheus Datasource (`prometheus`)**:
+   - Queries `http://prometheus:9090` for `http_requests_total` and `http_request_duration_seconds_bucket`.
+3. **Tempo Datasource (`tempo`)**:
+   - Connects to `http://tempo:3200` to visualize distributed traces linked by `trace_id`.
+
+### 4.2. Langfuse Tracing Hierarchies (`src/evaluation/tracer.py`)
 Each chat request creates a hierarchical observation tree:
 1. `financial-rag-chat` (`as_type="chain"`): Root span recording user query, `store_id`, tags, and duration.
 2. `input_guard` (`as_type="guardrail"`): Records raw query, sanitization output, and safety flags.
@@ -99,7 +126,7 @@ Each chat request creates a hierarchical observation tree:
 6. `output_guard_fidelity` (`as_type="guardrail"`): Records numerical grounding verification pass/fail status and unverified numbers.
 7. `create_score`: Logs a `numerical_fidelity` score (`1.0` if passed, `0.0` if unverified numbers remain).
 
-### 4.2. Automated Quality Metrics (`src/evaluation/metrics.py`)
+### 4.3. Automated Quality Metrics (`src/evaluation/metrics.py`)
 - **Faithfulness**: Proportion of generated statements whose facts exist in both the retrieved context and the expected facts:
   $$\text{Faithfulness} = \frac{|\text{Verified Claims}|}{|\text{Total Claims}|}$$
 - **Numerical Hallucination Rate**: Ratio of ungrounded numbers in the answer to total extracted numbers:
@@ -107,8 +134,8 @@ Each chat request creates a hierarchical observation tree:
 - **Context Precision & Recall**: Alignment between retrieved context chunk IDs and ground-truth chunks.
 
 ## 5. Verification & Acceptance Criteria
-Verified by **9 passing tests** in `tests/test_evaluation.py` and **7 passing tests** in `tests/test_api.py`:
-1. `tests/test_evaluation.py`:
+Verified by automated test suites in `tests/test_evaluation.py`, `tests/test_api.py`, and `scripts/test-k8s.ps1`:
+1. `tests/test_evaluation.py` (9 tests):
    - `test_faithfulness_requires_facts_in_answer_and_context`: Confirms fact-based grounding scoring.
    - `test_tracer_falls_back_without_credentials`: Confirms graceful startup when Langfuse keys are absent.
    - `test_tracer_workflow_run_graceful_without_client`: Confirms workflow execution when client is None.
@@ -116,6 +143,10 @@ Verified by **9 passing tests** in `tests/test_evaluation.py` and **7 passing te
    - `test_tracer_workflow_run_with_v4_observation_client`: Confirms modern v4 observation tree structure.
    - `test_eval_runner_loads_dataset_and_runs_batch`: Confirms batch execution over `golden_dataset.json`.
    - `test_runner_accepts_pydantic_final_output`: Confirms evaluation report serialization.
-2. `tests/test_api.py`:
+2. `tests/test_api.py` (7 tests):
    - `test_health_route`: Confirms public `/api/health` status.
    - `test_liveness_and_metrics_routes`: Confirms `/healthz/live` and Prometheus `/metrics` exposition.
+3. Grafana Live Verification (`scripts/test-k8s.ps1`):
+   - Health check `/api/datasources/uid/financial-rag-api/health` returns status `OK`.
+   - Health check `/api/datasources/uid/prometheus/health` returns status `OK`.
+   - Dashboards `Financial RAG Showcase` and `Financial RAG Reliability` loaded and searchable via `/api/search`.

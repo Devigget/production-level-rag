@@ -49,7 +49,18 @@ class StoreManager:
         self.file_path = Path(persistence_file)
         self._stores: dict[str, Store] = {}
         self._history: dict[str, list[ChatMessage]] = {}
+        self._last_mtime: float = 0.0
         self._load()
+
+    def _load_if_needed(self) -> None:
+        """Reload from disk if another process or replica updated the file."""
+        try:
+            if self.file_path.exists():
+                mtime = self.file_path.stat().st_mtime
+                if mtime > self._last_mtime:
+                    self._load()
+        except Exception:
+            pass
 
     def _load(self) -> None:
         try:
@@ -57,13 +68,29 @@ class StoreManager:
                 content = self.file_path.read_text(encoding="utf-8")
                 if content.strip():
                     data = json.loads(content)
+                    loaded_stores: dict[str, Store] = {}
                     for store_data in data.get("stores", []):
                         store = Store.model_validate(store_data)
-                        self._stores[store.id] = store
+                        if store.id in loaded_stores:
+                            existing = loaded_stores[store.id]
+                            # Preserve meaningful name over fallback "Store <id>"
+                            if existing.name.startswith("Store ") and not store.name.startswith("Store "):
+                                existing.name = store.name
+                            # Merge documents without duplicates
+                            existing_doc_ids = {d.doc_id for d in existing.documents}
+                            for doc in store.documents:
+                                if doc.doc_id not in existing_doc_ids:
+                                    existing.documents.append(doc)
+                                    existing_doc_ids.add(doc.doc_id)
+                        else:
+                            loaded_stores[store.id] = store
+                    self._stores = loaded_stores
+
                     for store_id, messages in data.get("history", {}).items():
                         self._history[store_id] = [
                             ChatMessage.model_validate(msg) for msg in messages
                         ]
+                self._last_mtime = self.file_path.stat().st_mtime
         except Exception as exc:
             logger.warning("Failed to load store registry: %s. Initializing fresh.", exc)
 
@@ -78,6 +105,12 @@ class StoreManager:
     def _save(self) -> None:
         try:
             self.file_path.parent.mkdir(parents=True, exist_ok=True)
+            # Ensure unique stores by ID
+            unique_stores: dict[str, Store] = {}
+            for sid, store in self._stores.items():
+                unique_stores[store.id] = store
+            self._stores = unique_stores
+
             payload = {
                 "stores": [store.model_dump() for store in self._stores.values()],
                 "history": {
@@ -86,26 +119,32 @@ class StoreManager:
                 },
             }
             self.file_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            self._last_mtime = self.file_path.stat().st_mtime
         except Exception as exc:
             logger.error("Failed to save store registry: %s", exc)
 
     def list_stores(self) -> list[Store]:
+        self._load_if_needed()
         return list(self._stores.values())
 
     def get_store(self, store_id: str) -> Optional[Store]:
+        self._load_if_needed()
         return self._stores.get(store_id)
 
-    def create_store(self, name: str, description: str = "") -> Store:
-        store_id = str(uuid.uuid4())[:8]
-        clean_name = name.strip() or f"Store {store_id}"
-        store = Store(id=store_id, name=clean_name, description=description.strip())
-        self._stores[store_id] = store
-        self._history[store_id] = []
+    def create_store(self, name: str, description: str = "", store_id: str | None = None) -> Store:
+        self._load_if_needed()
+        actual_id = store_id or str(uuid.uuid4())[:8]
+        clean_name = name.strip() or f"Store {actual_id}"
+        store = Store(id=actual_id, name=clean_name, description=description.strip())
+        self._stores[actual_id] = store
+        if actual_id not in self._history:
+            self._history[actual_id] = []
         self._save()
-        logger.info("Store created id=%s name=%s", store_id, clean_name)
+        logger.info("Store created id=%s name=%s", actual_id, clean_name)
         return store
 
     def delete_store(self, store_id: str) -> bool:
+        self._load_if_needed()
         if store_id == "default":
             # Don't delete default store, just clear its documents and history
             if "default" in self._stores:
@@ -121,11 +160,10 @@ class StoreManager:
         return False
 
     def add_document(self, store_id: str, doc: DocumentMetadata) -> DocumentMetadata:
+        self._load_if_needed()
         store = self.get_store(store_id)
         if not store:
-            store = self.create_store(name=f"Store {store_id}")
-            store.id = store_id
-            self._stores[store_id] = store
+            store = self.create_store(name=f"Store {store_id}", store_id=store_id)
         # Remove existing if same doc_id or same filename
         store.documents = [d for d in store.documents if d.doc_id != doc.doc_id and d.filename != doc.filename]
         store.documents.append(doc)
@@ -133,10 +171,12 @@ class StoreManager:
         return doc
 
     def list_documents(self, store_id: str) -> list[DocumentMetadata]:
+        self._load_if_needed()
         store = self.get_store(store_id)
         return list(store.documents) if store else []
 
     def get_chat_history(self, store_id: str, limit: int = 50) -> list[ChatMessage]:
+        self._load_if_needed()
         messages = self._history.get(store_id, [])
         return messages[-limit:]
 

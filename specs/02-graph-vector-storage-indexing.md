@@ -1,12 +1,12 @@
 # Spec 02: Hybrid Graph & Vector Storage Engine
 
 ## 1. Goal & Scope
-Build the structured, dense vector, and property graph storage and indexing engine:
+Build the structured, dense vector, and property graph storage and indexing engine for containerized and Kubernetes environments:
 - **Vector Store (Qdrant)**:
   - Generate dense embeddings for all `FinancialChunk` objects.
   - Store embeddings with serialized chunk payloads, indexed with UUIDv5 hashes.
   - Support strict multi-store tenant isolation by tagging points with `store_id` and executing filtered similarity searches.
-  - Support both local in-memory (`:memory:`) operation for deterministic testing and remote Qdrant service deployment.
+  - Support both local in-memory (`:memory:`) operation for deterministic testing and production Kubernetes deployment (`k8s/04-qdrant.yaml`) with a dedicated 10Gi PersistentVolumeClaim (`qdrant-pvc`).
 - **Structured Store (`StructuredFinancialStore`)**:
   - In-memory deterministic store indexing normalized `FinancialRecord` tuples `(source_file, sheet_name, metric, period)`.
   - Enables exact numerical retrieval for Power BI dashboard datasets and deterministic KPI comparisons.
@@ -15,6 +15,7 @@ Build the structured, dense vector, and property graph storage and indexing engi
   - Maintain a tenant-aware graph hierarchy:
     `(:Store)-[:HAS_DOCUMENT]->(:Document)-[:REPORTED_METRIC]->(:Metric)-[:HAS_VALUE]->(:Period)`
   - Register document metadata (`register_document`) and link unstructured entities (`link_unstructured_entities`) during ingestion and on system startup (`startup_sync_graph`).
+  - Production StatefulSet deployment (`k8s/05-neo4j.yaml`) with dedicated 10Gi PVC (`neo4j-pvc`), APOC plugins, `enableServiceLinks: false` (to prevent Kubernetes environment variable collision), and disabled strict configuration validation.
 - **Unified Indexing Coordinator (`FinancialIndexer`)**:
   - Orchestrate simultaneous indexing across Qdrant, Neo4j, and the structured record store.
 
@@ -25,6 +26,8 @@ Build the structured, dense vector, and property graph storage and indexing engi
 - `src/indexing/graph_store.py`        # Neo4j client wrapper (parameterized Cypher queries, registration, linking)
 - `src/indexing/indexer.py`            # FinancialIndexer coordinator class
 - `src/retrieval/structured_search.py` # StructuredFinancialStore indexing normalized records
+- `k8s/04-qdrant.yaml`                 # Qdrant Kubernetes Deployment, Service, and PVC mount
+- `k8s/05-neo4j.yaml`                  # Neo4j Kubernetes StatefulSet and Service
 - `tests/test_indexing.py`             # 5-test verification suite with in-memory Qdrant & mocked Neo4j
 
 ## 3. Data Contracts & Interfaces
@@ -76,13 +79,18 @@ graph TD
     FinEntity -->|RELATED {type, doc_id, store_id}| FinEntity
 ```
 
-### 4.2. Document Registration & Unstructured Linking
+### 4.2. Kubernetes Production StatefulSet Configuration (`k8s/05-neo4j.yaml`)
+In Kubernetes, Neo4j 5.x requires two specific configurations:
+1. `enableServiceLinks: false`: Prevents the Kubelet from injecting environment variables like `NEO4J_PORT_7687_TCP_PORT`, which Neo4j's entrypoint erroneously parses as configuration keys.
+2. `NEO4J_server_config_strict__validation_enabled: "false"`: Disables fatal startup validation errors on unmatched environment variables.
+
+### 4.3. Document Registration & Unstructured Linking
 1. **Document Registration (`register_document`)**:
    Merges `(:Store {id: $store_id})`, `(:Document {id: $doc_id})`, and creates the `[:HAS_DOCUMENT]` link with file metadata (`filename`, `total_chunks`, `chunk_types`, `uploaded_at`).
 2. **Entity Scoping & Linking (`link_unstructured_entities`)**:
    Matches entities extracted from the source document, sets their `store_id`, links them into `(:Store)-[:CONTAINS]->(target)`, and maps document provenance relationships (`[:REPORTED_METRIC]`, `[:DEFINES]`, `[:MENTIONS]`).
 
-### 4.3. Qdrant Vector Payload Schema
+### 4.4. Qdrant Vector Payload Schema
 Points are inserted into the Qdrant collection with UUIDv5 derived from the chunk ID:
 ```json
 {
@@ -101,16 +109,13 @@ Points are inserted into the Qdrant collection with UUIDv5 derived from the chun
   }
 }
 ```
-Queries specifying `store_id` apply a Qdrant `FieldCondition(key="store_id", match=MatchValue(value=store_id))` to enforce strict tenant boundary filtering.
-
-### 4.4. Embedding Architecture
-- **Production**: `sentence-transformers/all-MiniLM-L6-v2` (384 dimensions) loaded via injected embedder.
-- **Offline / Test Mode**: `HashEmbedder` generates deterministic normalized vectors using SHA-256 token hashing, avoiding external model downloads during automated testing.
 
 ## 5. Verification & Acceptance Criteria
-Verified by **5 passing tests** in `tests/test_indexing.py`:
-1. `test_vector_store_uses_in_memory_qdrant`: Validates Qdrant collection creation, payload storage, and similarity search in `:memory:` mode.
-2. `test_graph_extractor_extracts_metrics_and_quarters`: Validates entity and relation extraction from Markdown tables.
-3. `test_graph_store_uses_mocked_neo4j_driver`: Validates parameterized Cypher execution for entities and relations using a mocked Neo4j driver.
-4. `test_indexer_combines_vector_and_graph_layers`: Validates end-to-end coordination through `FinancialIndexer`.
-5. `test_graph_store_registers_document_and_links_unstructured`: Validates store registration, document linking, and entity scoping in Neo4j.
+1. `tests/test_indexing.py` (5 tests passing):
+   - In-memory Qdrant indexing and filtered vector search by `store_id`.
+   - Graph entity and temporal relationship extraction.
+   - Document registration and unstructured relationship linking.
+2. Kubernetes Readiness:
+   - `kubectl rollout status statefulset/neo4j -n rag-system` confirms running state.
+   - `kubectl rollout status deployment/qdrant -n rag-system` confirms running state.
+   - Backend `/healthz/ready` probe returns `dependencies: {qdrant: ok, neo4j: ok}`.

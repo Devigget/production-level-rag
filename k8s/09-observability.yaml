@@ -1,0 +1,588 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: rag-system
+  labels:
+    app: otel-collector
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: production-level-rag
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 75
+        spike_limit_percentage: 20
+      batch:
+        timeout: 1s
+        send_batch_size: 1024
+    exporters:
+      prometheus:
+        endpoint: 0.0.0.0:8889
+      otlp/tempo:
+        endpoint: tempo:4317
+        tls:
+          insecure: true
+    service:
+      pipelines:
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [prometheus]
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp/tempo]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: rag-system
+  labels:
+    app: otel-collector
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: production-level-rag
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector-contrib:0.108.0
+          args: ["--config=/etc/otelcol-contrib/config.yaml"]
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+            - name: metrics
+              containerPort: 8889
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol-contrib
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: rag-system
+  labels:
+    app: otel-collector
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: production-level-rag
+spec:
+  type: ClusterIP
+  selector:
+    app: otel-collector
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+    - name: metrics
+      port: 8889
+      targetPort: 8889
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo-config
+  namespace: rag-system
+  labels:
+    app: tempo
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/part-of: production-level-rag
+data:
+  tempo.yaml: |
+    server:
+      http_listen_port: 3200
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+            http:
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /var/tempo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tempo
+  namespace: rag-system
+  labels:
+    app: tempo
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/part-of: production-level-rag
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tempo
+  template:
+    metadata:
+      labels:
+        app: tempo
+    spec:
+      containers:
+        - name: tempo
+          image: grafana/tempo:2.6.1
+          args: ["-config.file=/etc/tempo/tempo.yaml"]
+          ports:
+            - name: http
+              containerPort: 3200
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+          volumeMounts:
+            - name: config
+              mountPath: /etc/tempo
+            - name: tempo-storage
+              mountPath: /var/tempo
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3200
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: tempo-config
+        - name: tempo-storage
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tempo
+  namespace: rag-system
+  labels:
+    app: tempo
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/part-of: production-level-rag
+spec:
+  type: ClusterIP
+  selector:
+    app: tempo
+  ports:
+    - name: http
+      port: 3200
+      targetPort: 3200
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: rag-system
+  labels:
+    app: prometheus
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: production-level-rag
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+    rule_files:
+      - /etc/prometheus/alerts.yml
+    scrape_configs:
+      - job_name: 'otel-collector'
+        static_configs:
+          - targets: ['otel-collector:8889']
+      - job_name: 'backend'
+        metrics_path: '/metrics'
+        static_configs:
+          - targets: ['backend:8000']
+  alerts.yml: |
+    groups:
+      - name: financial-rag-slo
+        rules:
+          - alert: FinancialRagHighErrorRate
+            expr: sum(rate(http_requests_total{code=~"5.."}[5m])) / clamp_min(sum(rate(http_requests_total[5m])), 1) > 0.02
+            for: 5m
+            labels:
+              severity: page
+            annotations:
+              summary: Financial RAG API error rate is above 2 percent
+              runbook: https://github.com/example/financial-rag/runbooks/high-error-rate
+              trace_filter: '{resource.service.name="financial-rag-api"} status=error'
+          - alert: FinancialRagLatencySLOBurn
+            expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m]))) > 0.3
+            for: 10m
+            labels:
+              severity: page
+            annotations:
+              summary: Financial RAG API p95 latency exceeds 300ms
+              runbook: https://github.com/example/financial-rag/runbooks/high-latency
+              trace_filter: '{resource.service.name="financial-rag-api"} duration>300ms'
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: rag-system
+  labels:
+    app: prometheus
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: production-level-rag
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.54.1
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+          ports:
+            - name: web
+              containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: rag-system
+  labels:
+    app: prometheus
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: production-level-rag
+spec:
+  type: ClusterIP
+  selector:
+    app: prometheus
+  ports:
+    - name: web
+      port: 9090
+      targetPort: 9090
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: rag-system
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: production-level-rag
+data:
+  datasource.yml: |
+    apiVersion: 1
+
+    datasources:
+      - name: Financial RAG API
+        uid: financial-rag-api
+        type: yesoreyeram-infinity-datasource
+        access: proxy
+        url: http://backend:8000
+        isDefault: true
+        editable: false
+
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: false
+        editable: false
+
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        access: proxy
+        url: http://tempo:3200
+        isDefault: false
+        editable: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-providers
+  namespace: rag-system
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: production-level-rag
+data:
+  dashboard.yml: |
+    apiVersion: 1
+
+    providers:
+      - name: Financial RAG
+        orgId: 1
+        folder: Financial RAG
+        type: file
+        disableDeletion: true
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: rag-system
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: production-level-rag
+data:
+  financial-rag.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "graphTooltip": 1,
+      "panels": [
+        {
+          "type": "stat",
+          "title": "Latest value",
+          "id": 1,
+          "gridPos": {"h": 5, "w": 8, "x": 0, "y": 0},
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "financial-rag-api"},
+          "targets": [{
+            "refId": "A",
+            "url_options": {"method": "GET"},
+            "type": "json",
+            "source": "url",
+            "url": "/api/dashboard/data?query=revenue",
+            "format": "table",
+            "parser": "backend",
+            "root_selector": "rows",
+            "columns": [
+              {"selector": "period", "text": "Period", "type": "string"},
+              {"selector": "value", "text": "Value", "type": "number"}
+            ]
+          }],
+          "fieldConfig": {"defaults": {"unit": "currencyUSD", "decimals": 0}, "overrides": []},
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "Value", "values": false}, "orientation": "auto", "textMode": "auto", "colorMode": "value"}
+        },
+        {
+          "type": "table",
+          "title": "Financial records",
+          "id": 2,
+          "gridPos": {"h": 10, "w": 16, "x": 8, "y": 0},
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "financial-rag-api"},
+          "targets": [{
+            "refId": "A",
+            "url_options": {"method": "GET"},
+            "type": "json",
+            "source": "url",
+            "url": "/api/dashboard/data?query=revenue",
+            "format": "table",
+            "parser": "backend",
+            "root_selector": "rows",
+            "columns": [
+              {"selector": "metric", "text": "Metric", "type": "string"},
+              {"selector": "period", "text": "Period", "type": "string"},
+              {"selector": "value", "text": "Value", "type": "number"},
+              {"selector": "source_file", "text": "Source", "type": "string"},
+              {"selector": "citation_id", "text": "Citation", "type": "string"}
+            ]
+          }],
+          "fieldConfig": {"defaults": {"custom": {"align": "auto", "cellOptions": {"type": "auto"}}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}}, "overrides": []},
+          "options": {"cellHeight": "sm", "footer": {"show": true}, "showHeader": true, "sort": {"col": 2, "desc": true}}
+        },
+        {
+          "type": "barchart",
+          "title": "Value by period",
+          "id": 3,
+          "gridPos": {"h": 9, "w": 24, "x": 0, "y": 10},
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "financial-rag-api"},
+          "targets": [{
+            "refId": "A",
+            "url_options": {"method": "GET"},
+            "type": "json",
+            "source": "url",
+            "url": "/api/dashboard/data?query=revenue",
+            "format": "table",
+            "parser": "backend",
+            "root_selector": "rows",
+            "columns": [
+              {"selector": "period", "text": "Period", "type": "string"},
+              {"selector": "value", "text": "Value", "type": "number"}
+            ]
+          }],
+          "fieldConfig": {"defaults": {"unit": "currencyUSD", "decimals": 0}, "overrides": []},
+          "options": {"orientation": "auto", "xTickLabelRotation": 0, "xTickLabelSpacing": 100, "showValue": "auto", "stacking": "none", "tooltip": {"mode": "single"}, "legend": {"displayMode": "list", "placement": "bottom"}}
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["financial-rag", "grounded-data"],
+      "templating": {"list": []},
+      "time": {"from": "now-30d", "to": "now"},
+      "timepicker": {},
+      "title": "Financial RAG Showcase",
+      "uid": "financial-rag-showcase",
+      "version": 1
+    }
+  observability.json: |
+    {
+      "annotations": {"list": []},
+      "editable": false,
+      "panels": [
+        {"id": 1, "type": "stat", "title": "Availability (5m)", "gridPos": {"h": 5, "w": 8, "x": 0, "y": 0}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "1 - (sum(rate(http_requests_total{code=~\"5..\"}[5m])) / clamp_min(sum(rate(http_requests_total[5m])), 1))", "refId": "A"}], "fieldConfig": {"defaults": {"unit": "percentunit", "decimals": 3, "min": 0, "max": 1}, "overrides": []}},
+        {"id": 2, "type": "stat", "title": "Request rate", "gridPos": {"h": 5, "w": 8, "x": 8, "y": 0}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "sum(rate(http_requests_total[5m]))", "refId": "A"}], "fieldConfig": {"defaults": {"unit": "reqps", "decimals": 2}, "overrides": []}},
+        {"id": 3, "type": "stat", "title": "p95 latency", "gridPos": {"h": 5, "w": 8, "x": 16, "y": 0}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))", "refId": "A"}], "fieldConfig": {"defaults": {"unit": "s", "decimals": 3}, "overrides": []}},
+        {"id": 4, "type": "timeseries", "title": "RED by route", "gridPos": {"h": 9, "w": 24, "x": 0, "y": 5}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "sum by (route) (rate(http_requests_total[5m]))", "legendFormat": "{{route}} RPS", "refId": "A"}, {"expr": "histogram_quantile(0.99, sum by (le, route) (rate(http_request_duration_seconds_bucket[5m])))", "legendFormat": "{{route}} p99", "refId": "B"}], "fieldConfig": {"defaults": {"custom": {"lineWidth": 2}, "unit": "short"}, "overrides": []}}
+      ],
+      "schemaVersion": 39,
+      "tags": ["financial-rag", "slo", "red"],
+      "time": {"from": "now-30m", "to": "now"},
+      "title": "Financial RAG Reliability",
+      "uid": "financial-rag-reliability",
+      "version": 1
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: rag-system
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: production-level-rag
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.2.0
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: "admin"
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: "admin"
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "true"
+            - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+              value: "Viewer"
+            - name: GF_INSTALL_PLUGINS
+              value: "https://grafana.com/api/plugins/yesoreyeram-infinity-datasource/versions/3.6.0/download?os=linux&arch=amd64;yesoreyeram-infinity-datasource"
+          ports:
+            - name: web
+              containerPort: 3000
+          volumeMounts:
+            - name: grafana-datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: grafana-dashboard-providers
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: grafana-dashboards
+              mountPath: /var/lib/grafana/dashboards
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: grafana-datasources
+          configMap:
+            name: grafana-datasources
+        - name: grafana-dashboard-providers
+          configMap:
+            name: grafana-dashboard-providers
+        - name: grafana-dashboards
+          configMap:
+            name: grafana-dashboards
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: rag-system
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: production-level-rag
+spec:
+  type: ClusterIP
+  selector:
+    app: grafana
+  ports:
+    - name: web
+      port: 3000
+      targetPort: 3000

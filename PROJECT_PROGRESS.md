@@ -13,7 +13,7 @@ The project has achieved **100% implementation completion** across all 10 specif
 | [Spec 05](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/05-mcp-server-and-tooling.md) | Model Context Protocol (MCP) server & tools | Fully Implemented | 8 unit tests passing (`tests/test_mcp.py`) |
 | [Spec 06](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/06-evaluation-and-observability.md) | Observability & automated evaluation harness | Fully Implemented | 9 eval tests + 7 API tests passing |
 | [Spec 07](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/07-react-frontend-interface.md) | React frontend & streaming API | Fully Implemented | 7 API tests + Playwright E2E passing |
-| [Spec 08](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/08-cicd-docker-deployment.md) | Production Docker compose & CI/CD pipeline | Fully Implemented | `docker compose config` & CI passing |
+| [Spec 08](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/08-cicd-docker-deployment.md) | Production Docker compose & CI/CD pipeline (GitHub Actions & Jenkins) | Fully Implemented | `docker compose config`, GitHub Actions & Jenkins CI passing (Lint/Test -> Build -> Push -> Deploy verified) |
 | [Spec 09](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/09-multi-store-isolation-and-memory.md) | Multi-store isolation & short-term memory | Fully Implemented | 4 unit tests passing (`tests/test_store_rag.py`) |
 | [Spec 10](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/10-intelligent-routing-and-graph-blueprint.md) | Intelligent query routing & Cypher blueprint | Fully Implemented | Query router & Cypher tests passing |
 
@@ -64,7 +64,14 @@ The project has achieved **100% implementation completion** across all 10 specif
 - React + Vite SPA with responsive dark Ledger Lens financial design
 - Multi-store navigation sidebar, SSE token streaming chat, interactive citation drawer, and KPI dashboard cards
 - 8-service Docker Compose architecture (`backend`, `frontend`, `qdrant`, `neo4j`, `otel-collector`, `prometheus`, `tempo`, `grafana`)
-- GitHub Actions CI/CD automation pipeline
+- Complete Kubernetes Orchestration (`k8s/`):
+  - Isolated `rag-system` namespace, ConfigMaps, and Secrets
+  - PersistentVolumeClaims for Neo4j, Qdrant, and Backend data
+  - StatefulSet for Neo4j and high-availability Deployments (2 replicas) for backend and frontend
+  - Nginx Ingress Controller routing with SSE streaming buffer disabling and 50MB payload limits
+- Dual Enterprise CI/CD Automation Pipelines:
+  - **GitHub Actions (`.github/workflows/ci.yml`)**: Pull-request testing, linting (`ruff`), and container validation.
+  - **Jenkins Pipeline (`Jenkinsfile`)**: Production continuous delivery executing `lint/test` → `build images` → `push to registry (Docker Hub)` → `deploy (zero-downtime rolling compose update)` with isolated test database mocking, dynamic secret file injection, and automated `/healthz/live` verification.
 
 ---
 

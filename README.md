@@ -351,7 +351,7 @@ The evaluation runner reports faithfulness, numerical accuracy, and context reca
 ## Project Layout
 
 ```text
-.
+├── k8s/                     Kubernetes production manifests (Deployments, Services, ConfigMap, Secrets, Ingress)
 ├── data/
 │   ├── eval/                 Golden evaluation dataset
 │   └── samples/              Sample financial inputs
@@ -371,6 +371,22 @@ The evaluation runner reports faithfulness, numerical accuracy, and context reca
 ├── requirements.txt          Python dependencies
 └── PROJECT_PROGRESS.md       Earlier implementation notes
 ```
+
+## Kubernetes Orchestration
+
+In addition to Docker Compose, the complete multi-service stack can be deployed on Kubernetes (Minikube, Kind, Docker Desktop K8s, or cloud clusters like EKS/GKE/AKS):
+
+- **Manifests (`k8s/`)**: Declarative manifests for isolated namespace (`rag-system`), ConfigMaps, Secrets, PVC persistent storage (Qdrant & Neo4j), zero-downtime rolling Deployments (backend & frontend), ClusterIP services, and Nginx Ingress with SSE streaming and 50MB document upload support.
+- **One-Command Deployment**:
+  ```bash
+  # Via Kustomize
+  kubectl apply -k k8s/
+
+  # Or using automated scripts:
+  ./scripts/deploy-k8s.sh      # Linux / macOS / WSL
+  .\scripts\deploy-k8s.ps1     # Windows PowerShell
+  ```
+- **Full Guide**: See [docs/kubernetes-deployment.md](docs/kubernetes-deployment.md) for architecture diagrams, resource allocations, health probes, and horizontal scaling.
 
 ## Important Configuration Notes
 

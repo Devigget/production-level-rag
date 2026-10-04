@@ -496,8 +496,7 @@ def upload(
     clean_store_id = store_id.strip() if store_id else "default"
     store = store_manager.get_store(clean_store_id)
     if not store:
-        store = store_manager.create_store(name=f"Store {clean_store_id}")
-        store.id = clean_store_id
+        store = store_manager.create_store(name=f"Store {clean_store_id}", store_id=clean_store_id)
     store_name = store.name
 
     doc_id = str(uuid.uuid4())[:8]

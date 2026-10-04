@@ -1,8 +1,11 @@
 # Spec 09: Multi-Store Financial Data Isolation & Conversational Short-Term Memory
 
 ## 1. Goal & Scope
-Build a multi-store catalog and session-isolated short-term conversational memory system:
-- **Store Partitioning**: Allow financial analysts to create and manage isolated workspaces ("Stores", e.g., "Main Ledger", "North America Retail", "EMEA Operations", "M&A Target A").
+Build a multi-store catalog and session-isolated short-term conversational memory system with cross-pod synchronization:
+- **Store Partitioning**: Allow financial analysts to create and manage isolated workspaces ("Stores", e.g., "Main Ledger", "North America Retail", "EMEA Operations", "Brew and Bean").
+- **Multi-Pod Concurrency Synchronization (`src/store/manager.py`)**:
+  - In high-availability multi-replica environments (e.g., 2 backend pods in Kubernetes), synchronize in-memory catalogs across pods sharing the persistent volume (`backend-data-pvc` at `/app/data/stores_registry.json`).
+  - Implement timestamp-based cache invalidation (`os.path.getmtime` checking) on all read/write accesses to prevent state drift, store duplication, or fluctuating store IDs across load-balanced requests.
 - **Document Registry**: Maintain a persistent document catalog per store, tracking filename, upload timestamp, chunk counts, and chunk types.
 - **Short-Term Conversational Memory**: Maintain multi-turn conversational history scoped strictly to each store. Feed recent turns into the agentic orchestration graph to resolve pronoun references and follow-up financial questions.
 - **Cross-Layer Data Isolation**:
@@ -13,7 +16,7 @@ Build a multi-store catalog and session-isolated short-term conversational memor
 - **Persistence**: Persist stores, document metadata, and message history to `data/stores_registry.json` with automatic fallback and default store provisioning.
 
 ## 2. Target File Tree
-- `src/store/manager.py`            # StoreManager, Store, DocumentMetadata, ChatMessage models
+- `src/store/manager.py`            # StoreManager with multi-pod file synchronization
 - `src/store/__init__.py`           # Store module exports
 - `data/stores_registry.json`       # Persistent JSON store catalog and chat history
 - `src/api/server.py`               # REST endpoints for store lifecycle and memory
@@ -70,15 +73,28 @@ class StoreResponse(BaseModel):
 
 ## 4. Architectural Details
 
-### 4.1. Store Manager (`StoreManager`)
-- **Initialization**: Loads `data/stores_registry.json`. If missing or empty, provisions a `"default"` store named `"Main Ledger"`.
-- **Thread-safe Persistence**: Atomic writes serialize stores and message history to disk.
+### 4.1. Store Manager Multi-Pod Synchronization (`StoreManager`)
+In Kubernetes, multiple backend pod replicas mount the shared volume `backend-data-pvc` at `/app/data`. If Pod A creates a store, Pod B must immediately reflect that store on subsequent requests.
+
+- **Timestamp Synchronization (`_check_and_reload`)**:
+  ```python
+  def _check_and_reload(self) -> None:
+      if not os.path.exists(self.registry_path):
+          return
+      try:
+          current_mtime = os.path.getmtime(self.registry_path)
+          if current_mtime > self._last_mtime:
+              self._load_from_disk()
+              self._last_mtime = current_mtime
+      except Exception:
+          pass
+  ```
 - **Operations**:
-  - `list_stores()`: Returns all active stores.
-  - `get_store(store_id)`: Fetches a store by its unique identifier.
-  - `create_store(name, description)`: Generates an 8-character UUID identifier and registers the store.
-  - `delete_store(store_id)`: Removes custom stores and cleans up memory. Preserves the `"default"` store but clears its contents.
-  - `add_document(store_id, doc)`: Deduplicates documents by `doc_id` or `filename` and updates document metadata.
+  - `list_stores()`: Invokes `_check_and_reload()` and returns all active stores.
+  - `get_store(store_id)`: Checks for disk updates before retrieving store metadata.
+  - `create_store(name, description)`: Generates an 8-character UUID identifier, checks for existing stores by name to avoid duplicate creations, writes atomically, and updates `_last_mtime`.
+  - `delete_store(store_id)`: Removes custom stores and cleans up memory. Preserves the `"default"` store.
+  - `add_document(store_id, doc)`: Deduplicates documents by `doc_id` or `filename`, updates metadata, and flushes to disk.
   - `list_documents(store_id)`: Retrieves documents uploaded to the specified store.
   - `add_message(store_id, role, content, ...)`: Records conversation turns with full audit metadata (citations, traversed graph nodes, route used, dashboard payload).
   - `get_chat_history(store_id, limit)`: Retrieves the last `N` messages for a store.
@@ -114,7 +130,7 @@ This formatted history is passed in `workflow_input["chat_history"]` and bound t
    - Ingests chunks with `payload={"store_id": store_id, "doc_id": doc_id, "chunk": ...}`.
    - In queries with `store_id`, applies Qdrant `FieldCondition` filtering on `store_id`.
 3. **Neo4j Graph Storage**:
-   - Executes `register_document(...)`: Merges `(:Store {id: $store_id})`, `(:Document {id: $doc_id})`, and `(:Store)-[:HAS_DOCUMENT]->(:Document)`.
+   - Executes `register_document(...)`: Merges `(:Store {id: $store_id})`, `(:Document {id: $doc_id})`, and creates `(:Store)-[:HAS_DOCUMENT]->(:Document)`.
    - Links entities to the document via `[:REPORTED_METRIC]`, `[:DEFINES]`, and `[:MENTIONS]` while attaching `store_id`.
    - On application startup, `startup_sync_graph()` re-verifies graph synchronization across all stores registered in `StoreManager`.
 
@@ -125,5 +141,5 @@ This formatted history is passed in `workflow_input["chat_history"]` and bound t
    - Verifies CSV upload with `store_id`, chunk count tracking, and store-specific document retrieval.
 3. `tests/test_store_rag.py::test_store_short_term_memory_persistence`:
    - Validates message persistence, retrieval, sliding-window formatting, and clear-chat reset.
-4. `tests/test_indexing.py::test_graph_store_registers_document_and_links_unstructured`:
-   - Validates that store and document hierarchy is merged into Neo4j and entities are scoped by `store_id`.
+4. Multi-pod store synchronization verification (`scripts/test-k8s.ps1` Phase 3):
+   - Confirms that stores created on Pod A are immediately returned by Pod B across round-robin load-balanced requests without store duplication or ID fluctuation.
