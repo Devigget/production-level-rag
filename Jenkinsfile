@@ -146,9 +146,9 @@ pipeline {
                             export RERANKER_HOST_MODEL_PATH="${RERANKER_HOST_MODEL_PATH}"
                             export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}"
                             
-                            # 3. Re-create ONLY backend and frontend in the existing stack. 
-                            # Neo4j, Qdrant, Prometheus are LEFT RUNNING UNTOUCHED.
-                            docker compose -p ${COMPOSE_PROJECT_NAME} up -d --no-deps backend frontend
+                            # 3. Deploy backend and frontend (starting dependencies if not already running)
+                            # Docker Compose v2 keeps existing healthy services untouched.
+                            docker compose -p ${COMPOSE_PROJECT_NAME} up -d backend frontend
                             
                             # 4. Remove temporary .env from workspace
                             rm -f .env
