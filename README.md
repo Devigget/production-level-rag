@@ -4,7 +4,7 @@ A production-oriented Retrieval-Augmented Generation system for asking grounded 
 
 ## Setup and Run
 
-The recommended setup uses Docker Compose. It starts the frontend, backend, Qdrant, and Neo4j together, including the Tesseract OCR runtime used for image uploads.
+The recommended setup uses Docker Compose. It starts the frontend, backend, Qdrant, and Neo4j together, including the Tesseract OCR runtime used for image uploads.Hey!
 
 ### 1. Prerequisites
 
