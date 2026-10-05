@@ -146,10 +146,10 @@ pipeline {
                         
                         # 2. Wait for zero-downtime rolling update completion
                         echo "Waiting for backend rollout to finish..."
-                        kubectl rollout status deployment/backend -n ${K8S_NAMESPACE} --timeout=180s
+                        kubectl rollout status deployment/backend -n ${K8S_NAMESPACE} --timeout=600s
                         
                         echo "Waiting for frontend rollout to finish..."
-                        kubectl rollout status deployment/frontend -n ${K8S_NAMESPACE} --timeout=180s
+                        kubectl rollout status deployment/frontend -n ${K8S_NAMESPACE} --timeout=600s
                         
                         echo "Kubernetes rolling deployment successfully verified!"
                     """

@@ -269,8 +269,8 @@ stage('Deploy to Kubernetes') {
         sh '''
             kubectl set image deployment/backend backend=${BACKEND_IMAGE}:${imageTag} -n rag-system
             kubectl set image deployment/frontend frontend=${FRONTEND_IMAGE}:${imageTag} -n rag-system
-            kubectl rollout status deployment/backend -n rag-system --timeout=180s
-            kubectl rollout status deployment/frontend -n rag-system --timeout=180s
+            kubectl rollout status deployment/backend -n rag-system --timeout=600s
+            kubectl rollout status deployment/frontend -n rag-system --timeout=600s
         '''
     }
 }
