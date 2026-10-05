@@ -7,6 +7,7 @@ pipeline {
         REGISTRY_USER = 'vgmclaren'  // <-- Change to your Docker Hub username
         BACKEND_IMAGE = "${REGISTRY_USER}/rag-backend"
         FRONTEND_IMAGE = "${REGISTRY_USER}/rag-frontend"
+        K8S_NAMESPACE = 'rag-system'
         COMPOSE_PROJECT_NAME = 'productionlevelrag'
 
         // --- 2. CREDENTIAL IDENTIFIERS ---
@@ -130,36 +131,28 @@ pipeline {
         }
 
         // ==========================================
-        // STAGE 4: DEPLOY (Only Backend & Frontend)
+        // STAGE 4: DEPLOY TO KUBERNETES
         // ==========================================
-        stage('Deploy') {
+        stage('Deploy to Kubernetes') {
             steps {
                 script {
-                    echo "Deploying updated backend & frontend containers..."
-                    withCredentials([file(credentialsId: PROD_ENV_SECRET_ID, variable: 'SECRET_ENV_FILE')]) {
-                        sh """
-                            # 1. Temporarily place production secrets for compose
-                            cp \$SECRET_ENV_FILE .env
-                            
-                            # 2. Export model paths & project name
-                            export LOCAL_LLM_HOST_PATH="${LOCAL_LLM_HOST_PATH}"
-                            export RERANKER_HOST_MODEL_PATH="${RERANKER_HOST_MODEL_PATH}"
-                            export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}"
-                            
-                            # 3. Deploy backend and frontend (starting dependencies if not already running)
-                            # Docker Compose v2 keeps existing healthy services untouched.
-                            docker compose -p ${COMPOSE_PROJECT_NAME} up -d backend frontend
-                            
-                            # 4. Remove temporary .env from workspace
-                            rm -f .env
-                            
-                            # 5. Health verification
-                            echo "Verifying backend health..."
-                            sleep 10
-                            curl --fail http://host.docker.internal:8000/healthz/live || curl --fail http://127.0.0.1:8000/healthz/live || exit 1
-                            echo "Deployment successfully verified!"
-                        """
-                    }
+                    def commitSha = env.GIT_COMMIT ? env.GIT_COMMIT.take(7) : "latest"
+                    def imageTag = "${env.BUILD_NUMBER}-${commitSha}"
+                    echo "Deploying updated backend & frontend to Kubernetes (${K8S_NAMESPACE})..."
+                    sh """
+                        # 1. Update deployment images with newly pushed image tag
+                        kubectl set image deployment/backend backend=${BACKEND_IMAGE}:${imageTag} -n ${K8S_NAMESPACE}
+                        kubectl set image deployment/frontend frontend=${FRONTEND_IMAGE}:${imageTag} -n ${K8S_NAMESPACE}
+                        
+                        # 2. Wait for zero-downtime rolling update completion
+                        echo "Waiting for backend rollout to finish..."
+                        kubectl rollout status deployment/backend -n ${K8S_NAMESPACE} --timeout=180s
+                        
+                        echo "Waiting for frontend rollout to finish..."
+                        kubectl rollout status deployment/frontend -n ${K8S_NAMESPACE} --timeout=180s
+                        
+                        echo "Kubernetes rolling deployment successfully verified!"
+                    """
                 }
             }
         }
