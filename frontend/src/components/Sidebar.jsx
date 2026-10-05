@@ -34,6 +34,7 @@ export default function Sidebar({
     if (ext.includes('xls') || ext.includes('csv')) return '📊'
     if (ext.includes('pdf')) return '📕'
     if (ext.includes('doc')) return '📝'
+    if (ext.includes('png') || ext.includes('jpg') || ext.includes('jpeg')) return '🖼️'
     return '📄'
   }
 

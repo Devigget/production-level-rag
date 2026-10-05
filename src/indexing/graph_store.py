@@ -127,5 +127,43 @@ class GraphStore:
                 filename=filename,
             )
 
+    def list_documents(self, store_id: str) -> list[dict[str, Any]]:
+        """Retrieve registered documents for a store from Neo4j."""
+        with self.driver.session(database=self.settings.neo4j_database) as session:
+            result = session.run(
+                """
+                MATCH (s:Store {id: $store_id})-[:HAS_DOCUMENT]->(d:Document)
+                RETURN d.id AS doc_id,
+                       d.store_id AS store_id,
+                       d.filename AS filename,
+                       d.file_type AS file_type,
+                       d.total_chunks AS total_chunks,
+                       d.chunk_types AS chunk_types,
+                       d.uploaded_at AS uploaded_at
+                ORDER BY d.uploaded_at ASC
+                """,
+                store_id=store_id,
+            )
+            return [dict(record) for record in result]
+
+    def list_all_documents(self) -> list[dict[str, Any]]:
+        """Retrieve all registered documents across all stores from Neo4j."""
+        with self.driver.session(database=self.settings.neo4j_database) as session:
+            result = session.run(
+                """
+                MATCH (s:Store)-[:HAS_DOCUMENT]->(d:Document)
+                RETURN s.id AS store_id,
+                       s.name AS store_name,
+                       d.id AS doc_id,
+                       d.filename AS filename,
+                       d.file_type AS file_type,
+                       d.total_chunks AS total_chunks,
+                       d.chunk_types AS chunk_types,
+                       d.uploaded_at AS uploaded_at
+                ORDER BY d.uploaded_at ASC
+                """
+            )
+            return [dict(record) for record in result]
+
     def close(self) -> None:
         self.driver.close()

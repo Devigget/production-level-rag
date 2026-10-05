@@ -116,6 +116,13 @@ instrument_fastapi(app)
 def startup_sync_graph() -> None:
     if indexer is not None and hasattr(indexer, "graph_store"):
         try:
+            # 1. Pull documents from graph store into store_manager to sync across replicas
+            if hasattr(indexer.graph_store, "list_all_documents"):
+                graph_docs = indexer.graph_store.list_all_documents()
+                if graph_docs:
+                    store_manager.sync_documents_from_graph(graph_docs)
+
+            # 2. Push registered stores and documents into graph store
             for store in store_manager.list_stores():
                 for doc in store.documents:
                     indexer.graph_store.register_document(
@@ -182,6 +189,14 @@ def _dashboard_payload(contexts: list[dict[str, Any]]) -> dict[str, Any]:
 
 @app.get("/api/stores", response_model=list[StoreResponse])
 def list_stores() -> list[StoreResponse]:
+    if indexer is not None and hasattr(indexer, "graph_store") and hasattr(indexer.graph_store, "list_all_documents"):
+        try:
+            graph_docs = indexer.graph_store.list_all_documents()
+            if graph_docs:
+                store_manager.sync_documents_from_graph(graph_docs)
+        except Exception as exc:
+            logger.debug("Graph document reconciliation during list_stores skipped: %s", exc)
+
     stores = store_manager.list_stores()
     return [
         StoreResponse(
@@ -209,6 +224,14 @@ def create_store(req: StoreCreateRequest) -> StoreResponse:
 
 @app.get("/api/stores/{store_id}", response_model=StoreResponse)
 def get_store(store_id: str) -> StoreResponse:
+    if indexer is not None and hasattr(indexer, "graph_store") and hasattr(indexer.graph_store, "list_documents"):
+        try:
+            graph_docs = indexer.graph_store.list_documents(store_id)
+            if graph_docs:
+                store_manager.sync_documents_from_graph(graph_docs)
+        except Exception as exc:
+            logger.debug("Graph document reconciliation during get_store skipped: %s", exc)
+
     store = store_manager.get_store(store_id)
     if not store:
         raise HTTPException(status_code=404, detail="Store not found")
@@ -231,6 +254,14 @@ def delete_store(store_id: str) -> dict[str, str]:
 
 @app.get("/api/stores/{store_id}/documents", response_model=list[DocumentSchema])
 def list_store_documents(store_id: str) -> list[DocumentSchema]:
+    if indexer is not None and hasattr(indexer, "graph_store") and hasattr(indexer.graph_store, "list_documents"):
+        try:
+            graph_docs = indexer.graph_store.list_documents(store_id)
+            if graph_docs:
+                store_manager.sync_documents_from_graph(graph_docs)
+        except Exception as exc:
+            logger.debug("Graph document reconciliation during list_store_documents skipped: %s", exc)
+
     docs = store_manager.list_documents(store_id)
     return [DocumentSchema(**d.model_dump()) for d in docs]
 

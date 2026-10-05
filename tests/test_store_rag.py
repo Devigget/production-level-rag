@@ -122,6 +122,55 @@ def test_store_manager_cross_replica_sync_and_deduplication(tmp_path):
     assert len(docs_on_r1) == 1
     assert docs_on_r1[0].doc_id == "doc1"
 
-    # 5. Verify no duplicate IDs exist
+    # 5. Test chat message on Replica 2 does NOT erase Replica 1's newly added documents
+    doc2 = DocumentMetadata(doc_id="doc2", store_id=store.id, filename="invoice.png", file_type=".png")
+    replica_1.add_document(store.id, doc2)
+
+    # Replica 2 handles a chat message (which calls add_message and saves)
+    replica_2.add_message(store.id, role="user", content="Hello")
+
+    # Verify both replicas still see both documents
+    docs_r1_after = replica_1.list_documents(store.id)
+    docs_r2_after = replica_2.list_documents(store.id)
+    assert len(docs_r1_after) == 2
+    assert len(docs_r2_after) == 2
+    filenames_r2 = {d.filename for d in docs_r2_after}
+    assert "invoice.png" in filenames_r2
+    assert "q4.pdf" in filenames_r2
+
+    # 6. Verify no duplicate IDs exist
     all_ids = [s.id for s in replica_1.list_stores()]
     assert len(all_ids) == len(set(all_ids))
+
+
+def test_store_manager_sync_from_graph(tmp_path):
+    from src.store.manager import StoreManager
+
+    registry_file = tmp_path / "stores_registry.json"
+    manager = StoreManager(persistence_file=registry_file)
+
+    graph_docs = [
+        {
+            "store_id": "store-xyz",
+            "store_name": "Coffee Roasters",
+            "doc_id": "doc-graph-1",
+            "filename": "beans_invoice.png",
+            "file_type": ".png",
+            "total_chunks": 1,
+            "chunk_types": ["image_ocr"],
+            "uploaded_at": "2026-10-05 10:00:00",
+        }
+    ]
+
+    added = manager.sync_documents_from_graph(graph_docs)
+    assert added == 1
+
+    docs = manager.list_documents("store-xyz")
+    assert len(docs) == 1
+    assert docs[0].filename == "beans_invoice.png"
+    assert docs[0].file_type == ".png"
+
+    # Idempotent call doesn't duplicate
+    added_again = manager.sync_documents_from_graph(graph_docs)
+    assert added_again == 0
+    assert len(manager.list_documents("store-xyz")) == 1

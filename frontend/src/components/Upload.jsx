@@ -52,7 +52,7 @@ export default function Upload({ activeStoreId = 'default', activeStoreName = 'M
           <span className="upload-icon">↑</span>
           <div className="drop-zone-info">
             <strong>{busy ? 'Ingesting into Vector + Knowledge Graph...' : `Upload Documents to [${activeStoreName}]`}</strong>
-            <small>Drag & drop or browse · XLSX, XLS, CSV, PDF, DOCX, TXT</small>
+            <small>Drag & drop or browse · XLSX, XLS, CSV, PDF, DOCX, TXT, PNG, JPG</small>
           </div>
         </div>
         <div className="drop-zone-action">
@@ -63,7 +63,7 @@ export default function Upload({ activeStoreId = 'default', activeStoreName = 'M
         ref={inputRef}
         type="file"
         hidden
-        accept=".pdf,.xlsx,.xls,.csv,.docx,.txt"
+        accept=".pdf,.xlsx,.xls,.csv,.docx,.txt,.png,.jpg,.jpeg"
         onChange={(event) => upload(event.target.files?.[0])}
       />
     </div>

@@ -25,7 +25,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: vgmclaren/rag-backend:latest
+          image: vgmclaren/rag-backend:v2
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
