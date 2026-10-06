@@ -12,6 +12,7 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
+# pyrefly: ignore [missing-import]
 from src.observability import configure_logging, configure_telemetry
 
 configure_telemetry()
@@ -21,6 +22,7 @@ from fastapi.responses import Response, StreamingResponse
 
 import pandas as pd
 
+# pyrefly: ignore [missing-import]
 from src.ingestion.pipeline import FinancialIngestionPipeline
 from src.ingestion.parsers.tabular_pipeline import (
     compile_cypher_statements,
