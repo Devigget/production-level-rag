@@ -131,13 +131,15 @@ pipeline {
         }
 
         // ==========================================
-        // STAGE 4: DEPLOY TO KUBERNETES
+        // STAGE 4: DEPLOY (Kubernetes & Local Docker Sync)
         // ==========================================
-        stage('Deploy to Kubernetes') {
+        stage('Deploy') {
             steps {
                 script {
                     def commitSha = env.GIT_COMMIT ? env.GIT_COMMIT.take(7) : "latest"
                     def imageTag = "${env.BUILD_NUMBER}-${commitSha}"
+                    
+                    // 1. Deploy to Kubernetes
                     echo "Deploying updated backend & frontend to Kubernetes (${K8S_NAMESPACE})..."
                     sh """
                         # 1. Update deployment images with newly pushed image tag
@@ -152,6 +154,13 @@ pipeline {
                         kubectl rollout status deployment/frontend -n ${K8S_NAMESPACE} --timeout=600s
                         
                         echo "Kubernetes rolling deployment successfully verified!"
+                    """
+
+                    // 2. Tag local Docker Compose images so Docker and Kubernetes run the exact same build
+                    echo "Syncing local Docker Compose images to tag ${imageTag}..."
+                    sh """
+                        docker tag ${BACKEND_IMAGE}:${imageTag} productionlevelrag-backend:latest
+                        docker tag ${FRONTEND_IMAGE}:${imageTag} productionlevelrag-frontend:latest
                     """
                 }
             }
