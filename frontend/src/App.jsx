@@ -16,6 +16,10 @@ export default function App() {
   const handleSelectStore = (storeId) => {
     setActiveStoreId(storeId)
     localStorage.setItem('activeStoreId', storeId)
+    const target = stores.find((s) => s.id === storeId)
+    if (target && target.documents) {
+      setDocuments(target.documents)
+    }
   }
 
   // Fetch all stores
@@ -151,7 +155,7 @@ export default function App() {
           onSelectStore={handleSelectStore}
           onCreateStore={handleCreateStore}
           onDeleteStore={handleDeleteStore}
-          documents={documents}
+          documents={documents.length > 0 ? documents : (activeStore?.documents || [])}
           onClearChat={handleClearChat}
         />
 
