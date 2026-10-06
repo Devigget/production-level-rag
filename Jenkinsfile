@@ -142,7 +142,10 @@ pipeline {
                     // 1. Deploy to Kubernetes
                     echo "Deploying updated backend & frontend to Kubernetes (${K8S_NAMESPACE})..."
                     sh """
-                        # 1. Update deployment images with newly pushed image tag
+                        # 1. Apply updated configuration maps
+                        kubectl apply -f k8s/01-configmap.yaml -n ${K8S_NAMESPACE}
+
+                        # 2. Update deployment images with newly pushed image tag
                         kubectl set image deployment/backend backend=${BACKEND_IMAGE}:${imageTag} -n ${K8S_NAMESPACE}
                         kubectl set image deployment/frontend frontend=${FRONTEND_IMAGE}:${imageTag} -n ${K8S_NAMESPACE}
                         

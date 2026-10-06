@@ -21,7 +21,7 @@ data:
   # --- LLM Provider & Routing ---
   LLM_PROVIDER: "groq"
   GROQ_MODEL: "openai/gpt-oss-120b"
-  GEMINI_MODEL: "gemini-2.5-flash"
+  GEMINI_MODEL: "gemini-3.5-flash"
   NVIDIA_MODEL: "google/gemma-4-31b-it"
 
   # --- Local Model Configurations ---
