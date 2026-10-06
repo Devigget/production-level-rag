@@ -150,7 +150,7 @@ class GeminiLLMInvoker:
         self.client = genai.Client(api_key=api_key)
 
     def __call__(self, prompt: str) -> str:
-        models_to_try = [self.model, "gemini-3.5-flash", "gemini-flash-latest"]
+        models_to_try = [self.model, "gemini-3.5-flash", "gemini-flash-latest", "gemini-3.8-flash"]
         last_exc = None
         for m in dict.fromkeys(models_to_try):
             try:
@@ -378,6 +378,26 @@ def create_llm_invoker() -> Callable[[str], str]:
             res = gemini_invoker(prompt)
             if res and res != "I could not find supporting financial context for that question.":
                 return res
+            groq_key = os.getenv("GROQ_API_KEY")
+            if groq_key:
+                try:
+                    logger.info("falling_back_to_groq_llm")
+                    groq_invoker = GroqLLMInvoker(groq_key, os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"))
+                    fallback_res = groq_invoker(prompt)
+                    if fallback_res and fallback_res != "I could not find supporting financial context for that question.":
+                        return fallback_res
+                except Exception as exc:
+                    logger.warning("fallback_groq_llm_failed: %s", exc)
+            nvidia_key = os.getenv("NVIDIA_API_KEY")
+            if nvidia_key:
+                try:
+                    logger.info("falling_back_to_nvidia_llm")
+                    nvidia_invoker = NvidiaLLMInvoker(nvidia_key, os.getenv("NVIDIA_MODEL", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"))
+                    fallback_res = nvidia_invoker(prompt)
+                    if fallback_res and fallback_res != "I could not find supporting financial context for that question.":
+                        return fallback_res
+                except Exception as exc:
+                    logger.warning("fallback_nvidia_llm_failed: %s", exc)
             try:
                 logger.info("falling_back_to_local_llm")
                 local_invoker = LocalHuggingFaceLLMInvoker()

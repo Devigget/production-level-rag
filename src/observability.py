@@ -76,7 +76,6 @@ def configure_telemetry() -> None:
         return
     try:
         from opentelemetry import trace
-        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -85,8 +84,20 @@ def configure_telemetry() -> None:
             "service.name": os.getenv("OTEL_SERVICE_NAME", "financial-rag-api"),
             "deployment.environment": os.getenv("APP_ENV", "local"),
         }))
-        endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4317")
-        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint, insecure=True)))
+        endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4318")
+        protocol = os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf").lower()
+
+        if ":4318" in endpoint or "http" in protocol:
+            from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter as HTTPSpanExporter
+
+            url = endpoint if endpoint.rstrip("/").endswith("/v1/traces") else f"{endpoint.rstrip('/')}/v1/traces"
+            exporter = HTTPSpanExporter(endpoint=url)
+        else:
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter as GRPCSpanExporter
+
+            exporter = GRPCSpanExporter(endpoint=endpoint, insecure=True)
+
+        provider.add_span_processor(BatchSpanProcessor(exporter))
         trace.set_tracer_provider(provider)
         try:
             from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor

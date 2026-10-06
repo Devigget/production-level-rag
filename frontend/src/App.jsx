@@ -6,10 +6,17 @@ import Upload from './components/Upload'
 
 export default function App() {
   const [stores, setStores] = useState([])
-  const [activeStoreId, setActiveStoreId] = useState('default')
+  const [activeStoreId, setActiveStoreId] = useState(() => {
+    return localStorage.getItem('activeStoreId') || 'b23f1806'
+  })
   const [documents, setDocuments] = useState([])
   const [selectedMessage, setSelectedMessage] = useState(null)
   const [uploadStatus, setUploadStatus] = useState('')
+
+  const handleSelectStore = (storeId) => {
+    setActiveStoreId(storeId)
+    localStorage.setItem('activeStoreId', storeId)
+  }
 
   // Fetch all stores
   const loadStores = useCallback(async () => {
@@ -18,8 +25,15 @@ export default function App() {
       if (res.ok) {
         const list = await res.json()
         setStores(list)
-        if (list.length > 0 && !list.find((s) => s.id === activeStoreId)) {
-          setActiveStoreId(list[0].id)
+        if (list.length > 0) {
+          const saved = localStorage.getItem('activeStoreId')
+          if (saved && list.find((s) => s.id === saved)) {
+            setActiveStoreId(saved)
+          } else if (!list.find((s) => s.id === activeStoreId)) {
+            const fallbackId = list.find((s) => s.id === 'b23f1806') ? 'b23f1806' : list[0].id
+            setActiveStoreId(fallbackId)
+            localStorage.setItem('activeStoreId', fallbackId)
+          }
         }
       }
     } catch (err) {
@@ -134,7 +148,7 @@ export default function App() {
         <Sidebar
           stores={stores}
           activeStoreId={activeStoreId}
-          onSelectStore={setActiveStoreId}
+          onSelectStore={handleSelectStore}
           onCreateStore={handleCreateStore}
           onDeleteStore={handleDeleteStore}
           documents={documents}

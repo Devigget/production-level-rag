@@ -96,6 +96,7 @@ In Kubernetes, multiple backend pod replicas mount the shared volume `backend-da
   - `delete_store(store_id)`: Removes custom stores and cleans up memory. Preserves the `"default"` store.
   - `add_document(store_id, doc)`: Deduplicates documents by `doc_id` or `filename`, updates metadata, and flushes to disk.
   - `list_documents(store_id)`: Retrieves documents uploaded to the specified store.
+  - `sync_documents_from_graph(documents)`: Reconciles documents discovered from Neo4j graph storage into local store state across replicas without duplication.
   - `add_message(store_id, role, content, ...)`: Records conversation turns with full audit metadata (citations, traversed graph nodes, route used, dashboard payload).
   - `get_chat_history(store_id, limit)`: Retrieves the last `N` messages for a store.
   - `format_short_term_memory(store_id, max_turns)`: Formats the recent dialogue turns into a prompt-ready transcript (`User: ... \n Assistant: ...`) for LLM context windowing.
@@ -141,5 +142,9 @@ This formatted history is passed in `workflow_input["chat_history"]` and bound t
    - Verifies CSV upload with `store_id`, chunk count tracking, and store-specific document retrieval.
 3. `tests/test_store_rag.py::test_store_short_term_memory_persistence`:
    - Validates message persistence, retrieval, sliding-window formatting, and clear-chat reset.
-4. Multi-pod store synchronization verification (`scripts/test-k8s.ps1` Phase 3):
+4. `tests/test_store_rag.py::test_store_manager_cross_replica_sync_and_deduplication`:
+   - Validates multi-replica state persistence and concurrent chat writes preserving new document additions.
+5. `tests/test_store_rag.py::test_store_manager_sync_from_graph`:
+   - Validates idempotent reconciliation of graph-persisted documents into the local store catalog.
+6. Multi-pod store synchronization verification (`scripts/test-k8s.ps1` Phase 3):
    - Confirms that stores created on Pod A are immediately returned by Pod B across round-robin load-balanced requests without store duplication or ID fluctuation.

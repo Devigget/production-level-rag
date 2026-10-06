@@ -71,18 +71,18 @@ graph TD
 | [Spec 06](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/06-evaluation-and-observability.md) | **Observability & Automated Evaluation Suite** | OpenTelemetry, Prometheus, Tempo trace engine, Grafana auto-provisioning (Infinity & RED dashboards), Langfuse | `tests/test_evaluation.py` (9 tests)<br>`tests/test_api.py` (7 tests)<br>`scripts/test-k8s.ps1` |
 | [Spec 07](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/07-react-frontend-interface.md) | **React Frontend & Financial Chat Interface** | Vite React app (2 replicas), multi-store sidebar, SSE streaming chat, dashboard cards, citations | `tests/test_api.py` (7 tests)<br>`frontend/tests/chat.spec.js` |
 | [Spec 08](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/08-cicd-docker-deployment.md) | **Production Containerization, Kubernetes Orchestration & CI/CD** | K8s (`k8s/`), 8 services / 10 pods, Nginx Ingress, Docker Compose, Jenkins CI/CD (`Jenkinsfile`) | `scripts/test-k8s.ps1`<br>Jenkins Pipeline<br>GitHub Actions CI |
-| [Spec 09](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/09-multi-store-isolation-and-memory.md) | **Multi-Store Isolation & Conversational Short-Term Memory** | `StoreManager` with multi-pod file synchronization (`os.path.getmtime`), document tracking, dialogue history | `tests/test_store_rag.py` (5 tests)<br>`scripts/test-k8s.ps1` |
+| [Spec 09](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/09-multi-store-isolation-and-memory.md) | **Multi-Store Isolation & Conversational Short-Term Memory** | `StoreManager` with multi-pod file synchronization (`os.path.getmtime`), document tracking, dialogue history | `tests/test_store_rag.py` (6 tests)<br>`scripts/test-k8s.ps1` |
 | [Spec 10](file:///c:/Users/VigneshPandurangGaun/OneDrive%20-%20McLaren%20Strategic%20Solutions%20US%20Inc/Documents/Final%20Evaluation%20Project/Production%20level%20RAG/specs/10-intelligent-routing-and-graph-blueprint.md) | **Intelligent Query Routing & Tabular Cypher Blueprinting** | `QueryRouter` (Vector/Graph/Hybrid), dynamic Cypher generation, dual-path tabular pipeline | `tests/test_store_rag.py`<br>`tests/test_retrieval.py` |
 
 ---
 
-## 3. Test Verification Matrix (61 Unit Tests + Kubernetes Smoke Test Suite)
+## 3. Test Verification Matrix (62 Unit Tests + Kubernetes Smoke Test Suite)
 
 ### 3.1. Python Automated Test Suite
-The core Python engine is verified by **61 passing unit and integration tests**:
+The core Python engine is verified by **62 passing unit and integration tests**:
 
 ```text
-======================= 61 passed in 115.57s =======================
+======================= 62 passed in 88.10s =======================
 tests/test_api.py (7 passed)
 tests/test_evaluation.py (9 passed)
 tests/test_indexing.py (5 passed)
@@ -90,7 +90,7 @@ tests/test_ingestion.py (8 passed)
 tests/test_mcp.py (8 passed)
 tests/test_orchestration.py (6 passed)
 tests/test_retrieval.py (13 passed)
-tests/test_store_rag.py (5 passed)
+tests/test_store_rag.py (6 passed)
 ```
 
 | Test Module | Tests | Specifications Covered | Key Capabilities Verified |
